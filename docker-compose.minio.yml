@@ -1,9 +1,58 @@
 # ---------------
 # MinIO
+#
+# ---------------
+# Config (paste into portainer advance env text input):
+#
+# <config_start>
+#   #@ Placement
+#   #-    Configure a placement constraint to where the container will be run.
+#   #-    Examples:
+#   #-        - node.hostname==<hostname>
+#   #-        - engine.labels.fs-access.<worker-hostname>.mnt==true
+#   #-        - node.role!=manager
+#   MINIO_PLACEMENT_CONSTRAINT=engine.labels.node-type==swarm-monitor
+#   #@ Host Config
+#   #-  - PUID -
+#   #-    User to run services as.
+#   PUID=1000
+#   #-  - PGID -
+#   #-    Group to run services as.
+#   PGID=1000
+#   #@ Traefik Config
+#   #-  - TRAEFIK_DOMAIN -
+#   #-    The Domiain where MinIO is accessed.
+#   MINIO_TRAEFIK_DOMAIN=minio.lan
+#   #@ Container Paths
+#   #-  - MINIO_DATA_PATH -
+#   #-    The Path to the Loki MinIO data directory
+#   MINIO_DATA_PATH=./appdata/minio
+#   #@ MinIO Config
+#   #-  - MINIO_ROOT_USER -
+#   #-    The username for MinIO
+#   MINIO_ROOT_USER=admin
+#   #-  - MINIO_ROOT_PASSWORD -
+#   #-    The password for MinIO
+#   MINIO_ROOT_PASSWORD=supersecret
+#   #-  - MINIO_API_PORT -
+#   #-    The MinIO API port
+#   MINIO_API_PORT=9000
+#   #-  - MINIO_HTTP_PORT -
+#   #-    The MinIO HTTP Console port
+#   MINIO_HTTP_PORT=9001
+# <config_end>
+#
+# ---------------
+# Setup Script
+#
+# <script_start>
+#   > mkdir -p ${MINIO_DATA_PATH:?}
+#   > sudo chmod 755 ${MINIO_DATA_PATH:?}
+#   > echo && echo "$(cd "${MINIO_DATA_PATH:?}" && pwd)" && ls -la ${MINIO_DATA_PATH:?}
+# <script_end>
+#
 # ---------------
 ---
-name: minio
-
 networks:
   private-net:
 
@@ -15,6 +64,7 @@ services:
   #
   minio:
     image: minio/minio@sha256:ac591851803a79aee64bc37f66d77c56b0a4b6e12d9e5356380f4105510f2332
+    user: ${PUID:-1000}:${PGID:-1000}
     deploy:
       replicas: 1
       restart_policy:
@@ -22,31 +72,31 @@ services:
         delay: 10s
       placement:
         constraints:
-          - ${LOKI_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+          - ${MINIO_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
       resources:
         limits:
           memory: 500M
         reservations:
           memory: 200M
       labels:
-        #### -- Disable traefik router for this service
-        - "traefik.enable=false"
+        #### -- Enable traefik router for this service
+        - "traefik.enable=true"
+
+        #### -- Define traefik router for this service
+        - "traefik.http.services.minio.loadbalancer.server.port=${MINIO_HTTP_PORT:-9001}"
+        - "traefik.http.routers.minio.entrypoints=web"
+        # Configure router domain
+        - "traefik.http.routers.minio.rule=Host(`${MINIO_TRAEFIK_DOMAIN:?}`)"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 15s
       timeout: 20s
       retries: 5
-    entrypoint:
-      - "/bin/sh"
-      - "-c"
-      - |
-        set -e
-
-        mkdir -p \
-          /data/loki-data \
-          /data/loki-ruler
-
-        minio server /data
+    command:
+      - "server"
+      - "/data"
+      - "--console-address"
+      - ":${MINIO_HTTP_PORT:-9001}"
 
     # NETWORK:
     networks:
@@ -54,19 +104,21 @@ services:
     ports:
       # MinIO API server
       - target: 9000
-        published: 9000
+        published: ${MINIO_API_PORT:-9000}
         protocol: tcp
         mode: host
       # MinIO HTTP server
-      - target: 45857
-        published: 45857
+      - target: ${MINIO_HTTP_PORT:-9001}
+        published: ${MINIO_HTTP_PORT:-9001}
         protocol: tcp
         mode: host
 
     # ENVIRONMENT:
     environment:
-      MINIO_ROOT_USER: ${ACCESS_KEY_ID:?}
-      MINIO_ROOT_PASSWORD: ${SECRET_ACCESS_KEY:?}
+      # Application:
+      # -- Config
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?}
       MINIO_PROMETHEUS_AUTH_TYPE: public
       MINIO_UPDATE: off
 
