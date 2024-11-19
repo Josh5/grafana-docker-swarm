@@ -667,7 +667,7 @@ services:
   # but rather a set of labels for each log stream.
   #
   loki-gateway:
-    image: nginx:latest
+    image: library/nginx@sha256:bc5eac5eafc581aeda3008b4b1f07ebba230de2f27d47767129a6a905c84f470
     deploy:
       replicas: 1
       restart_policy:
