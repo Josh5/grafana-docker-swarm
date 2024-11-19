@@ -1,15 +1,5 @@
 # ---------------
 # MinIO
-#   Config initially based on:  https://github.com/portainer/templates/blob/master/swarm/monitoring/docker-compose.yml
-#   Other refrences:
-#                     https://github.com/flaviostutz/docker-swarm-cluster
-#                     https://github.com/stefanprodan/swarmprom
-#
-# ---------------
-#
-# TODO:
-#   - Replace any depends_on with a wait-for-it script on entrypoint. Swarm does not support depends_on.
-#
 # ---------------
 ---
 name: minio
