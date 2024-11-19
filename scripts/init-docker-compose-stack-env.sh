@@ -5,7 +5,7 @@
 # File Created: Wednesday, 20th November 2024 9:14:43 am
 # Author: Josh5 (jsunnex@gmail.com)
 # -----
-# Last Modified: Wednesday, 20th November 2024 10:38:36 am
+# Last Modified: Wednesday, 20th November 2024 11:50:40 am
 # Modified By: Josh5 (jsunnex@gmail.com)
 ###
 
@@ -28,7 +28,7 @@ fi
 
 # Set defaults for local development in .env file
 if [ -f "${input_file_path:?}/${output_env_file:?}" ]; then
-    sed -i "s|<HOST_IP>|$(ip -4 addr show scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)|" "${input_file_path:?}/${output_env_file:?}"
+    sed -i "s|<HOST_IP>|$(hostname -I | awk '{print $1}')|" "${input_file_path:?}/${output_env_file:?}"
     echo "--> Configuration modified with local development defaults"
 fi
 

@@ -1,0 +1,93 @@
+###
+# File: fluent-bit.yaml
+# Project: etc
+# File Created: Tuesday, 29th October 2024 1:45:30 pm
+# Author: Josh5 (jsunnex@gmail.com)
+# -----
+# Last Modified: Wednesday, 20th November 2024 11:51:18 am
+# Modified By: Josh5 (jsunnex@gmail.com)
+###
+
+# service configuration
+service:
+  # Flush
+  # =====
+  # set an interval of seconds before to flush records to a destination
+  flush: 1
+
+  # Daemon
+  # ======
+  # instruct Fluent Bit to run in foreground or background mode.
+  daemon: Off
+
+  # Log_Level
+  # =========
+  # Set the verbosity level of the service, values can be:
+  #
+  # - error
+  # - warning
+  # - info
+  # - debug
+  # - trace
+  #
+  # by default 'info' is set, that means it includes 'error' and 'warning'.
+  log_level: info
+
+  # Parsers File
+  # ============
+  # specify an optional 'Parsers' configuration file
+  parsers_file: parsers.conf
+
+  # Plugins File
+  # ============
+  # specify an optional 'Plugins' configuration file to load external plugins.
+  plugins_file: plugins.conf
+
+  # HTTP Server
+  # ===========
+  # Enable/Disable the built-in HTTP Server for metrics
+  http_server: On
+  http_listen: 0.0.0.0
+  http_port: 2020
+
+  # Storage
+  # =======
+  # Fluent Bit can use memory and filesystem buffering based mechanisms
+  #
+  # - https://docs.fluentbit.io/manual/administration/buffering-and-storage
+  # - https://docs.fluentbit.io/manual/administration/buffering-and-storage#service-section-configuration
+  #
+  storage.metrics: on
+  storage.path: /var/fluent-bit/storage
+  storage.sync: normal
+  storage.checksum: off
+  storage.backlog.mem_limit: 5M
+
+  # Scheduling
+  # ==========
+  # Determine the waiting time before a retry will happen
+  #
+  # - https://docs.fluentbit.io/manual/administration/scheduling-and-retries
+  #
+  scheduler.cap: 2000
+  scheduler.base: 5
+
+pipeline:
+  inputs:
+    # HTTP input to sit behind an LB
+    - name: dummy
+      tag: test
+
+  outputs:
+    - name: stdout
+      match: '*'
+
+    # Grafana Loki output
+    - name: loki
+      match: '*'
+      host: ${HOST_IP}
+      port: 3100
+      uri: /logs/loki/api/v1/push
+      tls: off
+      labels: input=flb
+      line_format: json
