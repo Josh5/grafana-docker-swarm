@@ -1,0 +1,87 @@
+# ---------------
+# MinIO
+#   Config initially based on:  https://github.com/portainer/templates/blob/master/swarm/monitoring/docker-compose.yml
+#   Other refrences:
+#                     https://github.com/flaviostutz/docker-swarm-cluster
+#                     https://github.com/stefanprodan/swarmprom
+#
+# ---------------
+#
+# TODO:
+#   - Replace any depends_on with a wait-for-it script on entrypoint. Swarm does not support depends_on.
+#
+# ---------------
+---
+name: minio
+
+networks:
+  private-net:
+
+services:
+  # -- MinIO --
+  #
+  # High Performance Object Storage is Open Source, Amazon S3 compatible, Kubernetes Native and is designed for
+  # cloud native workloads like AI.
+  #
+  minio:
+    image: minio/minio@sha256:ac591851803a79aee64bc37f66d77c56b0a4b6e12d9e5356380f4105510f2332
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+      placement:
+        constraints:
+          - ${LOKI_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      resources:
+        limits:
+          memory: 500M
+        reservations:
+          memory: 200M
+      labels:
+        #### -- Disable traefik router for this service
+        - "traefik.enable=false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 20s
+      retries: 5
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - |
+        set -e
+
+        mkdir -p \
+          /data/loki-data \
+          /data/loki-ruler
+
+        minio server /data
+
+    # NETWORK:
+    networks:
+      - private-net
+    ports:
+      # MinIO API server
+      - target: 9000
+        published: 9000
+        protocol: tcp
+        mode: host
+      # MinIO HTTP server
+      - target: 45857
+        published: 45857
+        protocol: tcp
+        mode: host
+
+    # ENVIRONMENT:
+    environment:
+      MINIO_ROOT_USER: ${ACCESS_KEY_ID:?}
+      MINIO_ROOT_PASSWORD: ${SECRET_ACCESS_KEY:?}
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+      MINIO_UPDATE: off
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: ${MINIO_DATA_PATH:?}
+        target: /data
