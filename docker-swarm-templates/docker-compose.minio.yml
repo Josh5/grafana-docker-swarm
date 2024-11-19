@@ -1,0 +1,129 @@
+# ---------------
+# MinIO
+#
+# ---------------
+# Config (paste into portainer advance env text input):
+#
+# <config_start>
+#   #@ Placement
+#   #-    Configure a placement constraint to where the container will be run.
+#   #-    Examples:
+#   #-        - node.hostname==<hostname>
+#   #-        - engine.labels.fs-access.<worker-hostname>.mnt==true
+#   #-        - node.role!=manager
+#   MINIO_PLACEMENT_CONSTRAINT=engine.labels.node-type==swarm-monitor
+#   #@ Host Config
+#   #-  - PUID -
+#   #-    User to run services as.
+#   PUID=1000
+#   #-  - PGID -
+#   #-    Group to run services as.
+#   PGID=1000
+#   #@ Traefik Config
+#   #-  - TRAEFIK_DOMAIN -
+#   #-    The Domiain where MinIO is accessed.
+#   MINIO_TRAEFIK_DOMAIN=minio.lan
+#   #@ Container Paths
+#   #-  - MINIO_DATA_PATH -
+#   #-    The Path to the Loki MinIO data directory
+#   MINIO_DATA_PATH=./appdata/minio
+#   #@ MinIO Config
+#   #-  - MINIO_ROOT_USER -
+#   #-    The username for MinIO
+#   MINIO_ROOT_USER=admin
+#   #-  - MINIO_ROOT_PASSWORD -
+#   #-    The password for MinIO
+#   MINIO_ROOT_PASSWORD=supersecret
+#   #-  - MINIO_API_PORT -
+#   #-    The MinIO API port
+#   MINIO_API_PORT=9000
+#   #-  - MINIO_HTTP_PORT -
+#   #-    The MinIO HTTP Console port
+#   MINIO_HTTP_PORT=9001
+# <config_end>
+#
+# ---------------
+# Setup Script
+#
+# <script_start>
+#   > mkdir -p ${MINIO_DATA_PATH:?}
+#   > sudo chmod 755 ${MINIO_DATA_PATH:?}
+#   > echo && echo "$(cd "${MINIO_DATA_PATH:?}" && pwd)" && ls -la ${MINIO_DATA_PATH:?}
+# <script_end>
+#
+# ---------------
+---
+networks:
+  private-net:
+
+services:
+  # -- MinIO --
+  #
+  # High Performance Object Storage is Open Source, Amazon S3 compatible, Kubernetes Native and is designed for
+  # cloud native workloads like AI.
+  #
+  minio:
+    image: minio/minio:latest
+    user: ${PUID:-1000}:${PGID:-1000}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+      placement:
+        constraints:
+          - ${MINIO_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      resources:
+        limits:
+          memory: 500M
+        reservations:
+          memory: 200M
+      labels:
+        #### -- Enable traefik router for this service
+        - "traefik.enable=true"
+
+        #### -- Define traefik router for this service
+        - "traefik.http.services.minio.loadbalancer.server.port=${MINIO_HTTP_PORT:-9001}"
+        - "traefik.http.routers.minio.entrypoints=web"
+        # Configure router domain
+        - "traefik.http.routers.minio.rule=Host(`${MINIO_TRAEFIK_DOMAIN:?}`)"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 20s
+      retries: 5
+    command:
+      - "server"
+      - "/data"
+      - "--console-address"
+      - ":${MINIO_HTTP_PORT:-9001}"
+
+    # NETWORK:
+    networks:
+      - private-net
+    ports:
+      # MinIO API server
+      - target: 9000
+        published: ${MINIO_API_PORT:-9000}
+        protocol: tcp
+        mode: host
+      # MinIO HTTP server
+      - target: ${MINIO_HTTP_PORT:-9001}
+        published: ${MINIO_HTTP_PORT:-9001}
+        protocol: tcp
+        mode: host
+
+    # ENVIRONMENT:
+    environment:
+      # Application:
+      # -- Config
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?}
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+      MINIO_UPDATE: off
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: ${MINIO_DATA_PATH:?}
+        target: /data

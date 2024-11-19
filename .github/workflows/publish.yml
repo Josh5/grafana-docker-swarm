@@ -1,0 +1,26 @@
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    # At 02:30 on Saturday
+    - cron: '30 2 * * 6'
+
+jobs:
+  build-swarm-stack-templates:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and publish
+        uses: Josh5/action.publish-swarm-stack@master
+        with:
+          github_token: ${{ secrets.GH_TOKEN }}
+          templates_path: docker-swarm-templates
+          branch_name: release/latest

@@ -1,0 +1,936 @@
+# ---------------
+# Grafana for Docker Swarm
+#   Config initially based on:  https://github.com/portainer/templates/blob/master/swarm/monitoring/docker-compose.yml
+#   Other refrences:
+#                     https://github.com/flaviostutz/docker-swarm-cluster
+#                     https://github.com/stefanprodan/swarmprom
+#
+# ---------------
+# Config (paste into portainer advance env text input):
+#
+# <config_start>
+#   #@ Placement
+#   #-    Configure a placement constraint to where the container will be run.
+#   #-    Examples:
+#   #-        - node.hostname==<hostname>
+#   #-        - engine.labels.fs-access.<worker-hostname>.mnt==true
+#   #-        - node.role!=manager
+#   GRAFANA_PLACEMENT_CONSTRAINT=engine.labels.node-type==swarm-monitor
+#   PROMETHEUS_PLACEMENT_CONSTRAINT=engine.labels.node-type==swarm-monitor
+#   LOKI_PLACEMENT_CONSTRAINT=engine.labels.node-type==swarm-monitor
+#   #@ Host Config
+#   #-  - TZ -
+#   #-    The timezone.
+#   TZ=Etc/UTC
+#   #@ Traefik Config
+#   #-  - TRAEFIK_DOMAIN -
+#   #-    The Domiain where Grafana is accessed.
+#   TRAEFIK_DOMAIN=localhost:3000
+#   #-  - TRAEFIK_PATH_PREFIX_GRAFANA -
+#   #-    The prefix for accessing grafana
+#   TRAEFIK_PATH_PREFIX_GRAFANA=/dashboard
+#   #-  - TRAEFIK_PATH_PREFIX_LOKI -
+#   #-    The prefix for accessing grafana
+#   TRAEFIK_PATH_PREFIX_LOKI=/logs
+#   #@ Container Paths
+#   #-  - GRAFANA_CONFIG_PATH -
+#   #-    The Path to the Grafana config directory
+#   GRAFANA_CONFIG_PATH=./appdata/grafana
+#   #-  - PROMETHEUS_CONFIG_PATH -
+#   #-    The Path to the Prometheus config directory
+#   PROMETHEUS_CONFIG_PATH=./appdata/prometheus
+#   #-  - ALERTMANAGER_DATA_PATH -
+#   #-    The Path to the Alertmanager storage directory
+#   ALERTMANAGER_DATA_PATH=./appdata/alertmanager
+#   #-  - LOKI_DATA_PATH -
+#   #-    The Path to the Loki storage directory
+#   LOKI_DATA_PATH=./appdata/loki
+#   #@ Loki Config
+#   #-  - LOKI_USERNAME -
+#   #-    The username for Grafana Loki
+#   LOKI_USERNAME=client
+#   #-  - LOKI_PASSWORD_HASH -
+#   #-    The hash of the password for Grafana Loki. Generate this with:
+#   #-      > echo -n "Enter password for user '${LOKI_USERNAME:?}': " \
+#   #-      >   && read -s password \
+#   #-      >   && echo "'${password}'" \
+#   #-      >   && sudo docker run --rm httpd htpasswd -nb ${LOKI_USERNAME:?} ${password}
+#   LOKI_PASSWORD_HASH='$apr1$wcCsl.As$SAbn61uxmjxbeyRs29eZk0'
+#   #-  - LOKI_S3_USE_MINIO -
+#   #-    The endpoint for the S3 bucket compatible storage.
+#   LOKI_S3_USE_MINIO=true
+#   #-  - LOKI_S3_ENDPOINT -
+#   #-    The endpoint for the S3 bucket compatible storage.
+#   LOKI_S3_ENDPOINT=<HOST_IP>:9000
+#   #-  - LOKI_S3_BUCKET_NAME -
+#   #-    The S3 bucket name.
+#   LOKI_S3_BUCKET_NAME=loki-data
+#   #-  - ACCESS_KEY_ID -
+#   #-    The username for S3 bucket
+#   ACCESS_KEY_ID=loki
+#   #-  - SECRET_ACCESS_KEY -
+#   #-    The password for S3 bucket
+#   SECRET_ACCESS_KEY=supersecret
+# <config_end>
+#
+# ---------------
+# Setup Script
+#
+# <script_start>
+#   > mkdir -p \
+#   >     ${GRAFANA_CONFIG_PATH:?} \
+#   >     ${PROMETHEUS_CONFIG_PATH:?} \
+#   >     ${ALERTMANAGER_DATA_PATH:?} \
+#   >     ${LOKI_DATA_PATH:?}
+#   > sudo chown 472:472 ${GRAFANA_CONFIG_PATH:?}
+#   > sudo chown 65534:65534 ${PROMETHEUS_CONFIG_PATH:?}
+#   > sudo chown 65534:65534 ${ALERTMANAGER_DATA_PATH:?}
+#   > sudo chown 10001:10001 ${LOKI_DATA_PATH:?}
+#   > sudo chmod 755 \
+#   >     ${GRAFANA_CONFIG_PATH:?} \
+#   >     ${PROMETHEUS_CONFIG_PATH:?} \
+#   >     ${ALERTMANAGER_DATA_PATH:?} \
+#   >     ${LOKI_DATA_PATH:?}
+#   > echo && echo "$(cd "${GRAFANA_CONFIG_PATH:?}" && pwd)" && ls -la ${GRAFANA_CONFIG_PATH:?}
+#   > echo && echo "$(cd "${PROMETHEUS_CONFIG_PATH:?}" && pwd)" && ls -la ${PROMETHEUS_CONFIG_PATH:?}
+#   > echo && echo "$(cd "${ALERTMANAGER_DATA_PATH:?}" && pwd)" && ls -la ${ALERTMANAGER_DATA_PATH:?}
+#   > echo && echo "$(cd "${LOKI_DATA_PATH:?}" && pwd)" && ls -la ${LOKI_DATA_PATH:?}
+# <script_end>
+#
+# ---------------
+---
+networks:
+  swarm-public:
+    # NOTE: This network needs to be manually created and needs to
+    #       be configured for manual container attachment
+    external: true
+  private-net:
+
+x-environment-defaults:
+  service:
+    environment: &environment_defaults
+      TZ: ${TZ:-Etc/UTC}
+
+x-service-defaults:
+  loki: &loki_service_defaults
+    # Releases:
+    #   https://github.com/grafana/loki/releases
+    image: grafana/loki:3.2.1 #>convert_sha256
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 20s
+      placement:
+        constraints:
+          - ${LOKI_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      resources:
+        limits:
+          memory: 1.5G
+        reservations:
+          memory: 500M
+    entrypoint:
+      - "sh"
+      - "-c"
+      - |
+        set -e
+
+        echo "### Writing custom local-config.yaml ###"
+
+        echo "  - Create custom S3 connection config"
+        s3_storage_url_credentials="$${ACCESS_KEY_ID:-}:$${SECRET_ACCESS_KEY:-}"
+        if [ "$${LOKI_S3_USE_MINIO:-}" = "true" ]; then
+          # MinIO reqires that we use s3forcepathstyle
+          s3_force_path_style="true"
+          if [ "$${s3_storage_url_credentials:-}" != ":" ]; then
+            # http<s>://<username>:<secret>@<fqdn>:<port>
+            s3_storage_url="http://$${s3_storage_url_credentials:?}@$${LOKI_S3_ENDPOINT:?}"
+          else
+            echo "ERROR! No ACCESS_KEY_ID and/or SECRET_ACCESS_KEY set. Exit!"
+            exit 1
+          fi
+        else
+          # AWS recommends that we don't use s3forcepathstyle
+          s3_force_path_style="false"
+          # s3://<region>
+          s3_storage_url="s3://$${AWS_REGION:?}"
+          if [ "$${s3_storage_url_credentials:-}" != ":" ]; then
+            # s3://<access_key>:<uri-encoded-secret-access-key>@<region>
+            s3_storage_url="s3://$${s3_storage_url_credentials:?}@$${AWS_REGION:?}"
+          fi
+        fi
+
+        echo "  - Write out config to /etc/loki/local-config.yaml"
+        cat << EOF >/etc/loki/local-config.yaml
+        auth_enabled: false
+
+        analytics:
+          reporting_enabled: false
+
+        server:
+          log_level: info
+          http_listen_port: 3100
+          http_path_prefix: $${TRAEFIK_PATH_PREFIX_LOKI:-}
+          grpc_listen_port: 9096
+          grpc_server_max_concurrent_streams: 1000
+
+        schema_config:
+          configs:
+            - from: 2024-03-29
+              store: tsdb
+              object_store: s3
+              schema: v13
+              index:
+                prefix: index_
+                period: 24h
+
+        common:
+          instance_addr: 127.0.0.1
+          path_prefix: /loki
+          replication_factor: 1
+          ring:
+            kvstore:
+              store: inmemory
+
+        storage_config:
+          tsdb_shipper:
+            active_index_directory: /loki/tsdb/index
+            cache_location: /loki/tsdb/index_cache
+            cache_ttl: 24h
+          aws:
+            s3forcepathstyle: $${s3_force_path_style:?}
+            s3: $${s3_storage_url:?}
+            bucketnames: $${LOKI_S3_BUCKET_NAME:?}
+
+
+        ingester_rf1:
+          # Whether the ingester is enabled.
+          # Optimises data writes when the replication factor is set to 1.
+          # Provides performance improvements by bypassing certain distributed systems checks that are otherwise unnecessary in single-replica setups.
+          enabled: false
+
+        ingester:
+          max_chunk_age: 2h
+          chunk_retain_period: 1m
+          chunk_encoding: gzip
+
+        querier:
+          # Default is 4, if you have enough memory and CPU you can increase, reduce if OOMing
+          max_concurrent: 4
+          query_ingesters_within: 2h
+
+        limits_config:
+          reject_old_samples: true
+          reject_old_samples_max_age: 24h
+          allow_structured_metadata: true
+          volume_enabled: true
+          retention_period: 672h
+          cardinality_limit: 500000
+          ingestion_burst_size_mb: 200
+          ingestion_rate_mb: 100
+          ingestion_rate_strategy: local
+          max_concurrent_tail_requests: 100
+          max_entries_limit_per_query: 1000000
+          max_global_streams_per_user: 1000000
+          max_label_name_length: 1024
+          max_label_names_per_series: 50
+          max_label_value_length: 4096
+          max_query_parallelism: 64
+          max_query_series: 250000
+          per_stream_rate_limit: 100M
+          per_stream_rate_limit_burst: 200M
+          query_timeout: 10m
+
+        ruler:
+          alertmanager_url: http://localhost:9093
+
+        compactor:
+          working_directory: /tmp/compactor
+          retention_enabled: true 
+          delete_request_store: s3
+
+        # Create a read cache of queries
+        query_range:
+          # make queries more cache-able by aligning them with their step intervals
+          align_queries_with_step: true
+          results_cache:
+            cache:
+              embedded_cache:
+                enabled: true
+                max_size_mb: 500
+          max_retries: 5
+          parallelise_shardable_queries: true
+          cache_results: true
+
+        # Use protobuf encoding as it uses less resources than the default JSON encoding
+        frontend:
+          encoding: protobuf
+          log_queries_longer_than: 5s
+          compress_responses: true
+          max_outstanding_per_tenant: 2048
+
+        EOF
+        cat /etc/loki/local-config.yaml
+
+        echo "### Running Loki service ###"
+        echo "/usr/bin/loki -config.file=/etc/loki/local-config.yaml $${@}"
+        exec /usr/bin/loki -config.file=/etc/loki/local-config.yaml $${@}
+
+    # NETWORK:
+    networks:
+      - private-net
+
+    # ENVIRONMENT:
+    environment:
+      <<: *environment_defaults
+      TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
+      LOKI_S3_USE_MINIO: ${LOKI_S3_USE_MINIO:-false}
+      LOKI_S3_ENDPOINT: ${LOKI_S3_ENDPOINT:-s3.amazonaws.com}
+      LOKI_S3_BUCKET_NAME: ${LOKI_S3_BUCKET_NAME:?}
+      AWS_REGION: ${AWS_REGION:-}
+      ACCESS_KEY_ID: ${ACCESS_KEY_ID:-}
+      SECRET_ACCESS_KEY: ${SECRET_ACCESS_KEY:-}
+
+services:
+  # -- Grafana  --
+  #
+  # Grafana is the open source analytics & monitoring solution for every database.
+  #
+  grafana:
+    image: grafana/grafana:11.3.0 #>convert_sha256
+    entrypoint:
+      - "/bin/bash"
+      - "-c"
+      - |
+        set -e
+        echo "### Setting configuration ###"
+        echo "  - Set Datasources"
+        cat << EOF > /etc/grafana/provisioning/datasources/provisioning-datasources.yaml
+        apiVersion: 1
+
+        datasources:
+          - name: Prometheus
+            type: prometheus
+            uid: prometheus
+            access: proxy
+            basicAuth: false
+            orgId: 1
+            url: http://prometheus:9090
+            version: 1
+            editable: false
+            isDefault: false
+
+          - name: Loki
+            type: loki
+            uid: loki
+            access: proxy
+            basicAuth: false
+            url: http://loki-gateway:3100$${TRAEFIK_PATH_PREFIX_LOKI:-}
+            version: 1
+            jsonData:
+              httpHeaderName1: "X-Scope-OrgID"
+            secureJsonData:
+              httpHeaderValue1: "tenant1"
+            editable: false
+            isDefault: false
+
+          - name: Alertmanager
+            type: alertmanager
+            access: proxy
+            basicAuth: false
+            url: http://alertmanager:9093
+            jsonData:
+              # Valid options for implementation include mimir, cortex and prometheus
+              implementation: prometheus
+              # Whether or not Grafana should send alert instances to this Alertmanager
+              handleGrafanaManagedAlerts: false
+            editable: false
+            isDefault: false
+
+        EOF
+        echo
+
+        echo "### Running /run.sh ###"
+        source /run.sh
+
+    ports:
+      - target: 3000
+        published: 3000
+        protocol: tcp
+        mode: host
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        reservations:
+          memory: 512M
+      placement:
+        constraints:
+          - ${GRAFANA_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      labels:
+        #### -- Enable traefik router for this service
+        - "traefik.enable=true"
+
+        #### -- Define traefik router for this service
+        - "traefik.http.services.grafana-swarm-monitor.loadbalancer.server.port=3000"
+        - "traefik.http.routers.grafana-swarm-monitor.entrypoints=web"
+        # Configure router domain
+        - "traefik.http.routers.grafana-swarm-monitor.rule=Host(`${TRAEFIK_DOMAIN:?}`) && PathPrefix(`${TRAEFIK_PATH_PREFIX_GRAFANA:?}`)"
+
+    # NETWORK:
+    networks:
+      - private-net
+      - swarm-public
+
+    # ENVIRONMENT:
+    environment:
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SERVER_ROOT_URL: http://${TRAEFIK_DOMAIN:?}${TRAEFIK_PATH_PREFIX_GRAFANA:?}
+      TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: ${GRAFANA_CONFIG_PATH:?}
+        target: /var/lib/grafana
+
+  # -- Prometheus  --
+  #
+  # An open-source monitoring system with a dimensional data model, flexible query language, efficient
+  # time series database and modern alerting approach.
+  #
+  prometheus:
+    image: prom/prometheus:v2.44.0 #>convert_sha256
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 1.5G
+        reservations:
+          memory: 512M
+      placement:
+        constraints:
+          - ${PROMETHEUS_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - |
+        set -e
+
+        echo "### Setting configuration ###"
+        echo "  - Write out base config"
+        cat << EOF > /etc/prometheus/prometheus.yml
+        # Custom config
+
+        global:
+          scrape_interval:     15s
+          evaluation_interval: 15s
+
+        scrape_configs:
+          - job_name: 'prometheus'
+            scrape_interval: 1m
+            static_configs:
+              - targets: ['localhost:9090']
+
+          - job_name: 'cadvisor'
+            dns_sd_configs:
+            - names:
+              - 'tasks.cadvisor'      # Use the 'tasks.' prefix to discover all tasks
+              type: 'A'               # Type of DNS query (e.g., 'A' for IPv4, 'SRV' for service records)
+              port: 8080              # Port service is running on
+              refresh_interval: 60s   # How often Prometheus should refresh DNS records
+
+          - job_name: 'node-exporter'
+            dns_sd_configs:
+            - names:
+              - 'tasks.node-exporter'
+              type: 'A'
+              port: 9100
+              refresh_interval: 60s
+
+          - job_name: 'loki'
+            dns_sd_configs:
+            - names:
+              - 'tasks.loki-gateway'
+              type: 'A'
+              port: 3100
+              refresh_interval: 60s
+            metrics_path: $${TRAEFIK_PATH_PREFIX_LOKI:-}/metrics
+            relabel_configs:
+              - source_labels: [__meta_dns_name]
+                regex: (.*)
+                target_label: instance
+                replacement: \$$1
+                  
+        EOF
+        echo
+
+        if [ "X$${TRAEFIK_METRICS_SOURCE}" != "X" ]; then
+          echo "  - Adding Traefik Metrics"
+          cat << EOF >> /etc/prometheus/prometheus.yml
+
+          - job_name: traefik
+            scrape_interval: 2m
+            metrics_path: /metrics
+            static_configs:
+            - targets: [$${TRAEFIK_METRICS_SOURCE}]
+        EOF
+          if [ "X$${NR_REMOTE_WRITE_KEY}" != "X" ]; then
+            cat << EOF >> /etc/prometheus/prometheus.yml
+              labels:
+                group: traefik
+        EOF
+          fi
+        fi
+
+        if [ "X$${NR_REMOTE_WRITE_KEY}" != "X" ]; then
+          echo "  - Adding New Relic Remote Write"
+          cat << EOF >> /etc/prometheus/prometheus.yml
+
+        remote_write:
+        - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=$${NR_DATA_SOURCE_NAME}
+          authorization:
+            credentials: $${NR_REMOTE_WRITE_KEY}
+        EOF
+        fi
+
+        export PROMETHEUS_LOG_LEVEL="error"
+        if [ "$${PROMETHEUS_DEBUGGING}" = "true" ]; then
+          export PROMETHEUS_LOG_LEVEL="debug"
+          echo
+          echo "Print prometheus config..."
+          cat /etc/prometheus/prometheus.yml
+
+          echo
+          echo "Print prometheus command..."
+          echo /bin/prometheus \
+            --config.file=/etc/prometheus/prometheus.yml \
+            --log.level=$${PROMETHEUS_LOG_LEVEL} \
+            --storage.tsdb.path=/prometheus \
+            --storage.tsdb.retention.time=7d \
+            --web.console.libraries=/usr/share/prometheus/console_libraries \
+            --web.console.templates=/usr/share/prometheus/consoles \
+            --web.external-url=http://localhost:9090
+        fi
+
+        echo "Running prometheus..."
+        exec /bin/prometheus \
+          --config.file=/etc/prometheus/prometheus.yml \
+          --log.level=$${PROMETHEUS_LOG_LEVEL} \
+          --storage.tsdb.path=/prometheus \
+          --storage.tsdb.retention.time=7d \
+          --web.console.libraries=/usr/share/prometheus/console_libraries \
+          --web.console.templates=/usr/share/prometheus/consoles \
+          --web.external-url=http://localhost:9090
+
+    # NETWORK:
+    networks:
+      - private-net
+
+    # ENVIRONMENT:
+    environment:
+      <<: *environment_defaults
+      # Application:
+      # -- Config
+      # Enable debugging
+      PROMETHEUS_DEBUGGING: ${PROMETHEUS_DEBUGGING:-false}
+      # NewRelic Config
+      NR_REMOTE_WRITE_KEY: ${NR_REMOTE_WRITE_KEY:-}
+      NR_DATA_SOURCE_NAME: ${NR_DATA_SOURCE_NAME:-}
+      # Additional Metric Sources
+      TRAEFIK_METRICS_SOURCE: ${TRAEFIK_METRICS_SOURCE:-}
+      TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: ${PROMETHEUS_CONFIG_PATH:?}
+        target: /prometheus
+
+  # -- cAdvisor (Container Advisor)  --
+  #
+  # Provides container users an understanding of the resource usage and performance characteristics of their
+  # running containers. It is a running daemon that collects, aggregates, processes, and exports information about
+  # running containers. Specifically, for each container it keeps resource isolation parameters, historical
+  # resource usage, histograms of complete historical resource usage and network statistics.
+  #
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0 #>convert_sha256
+    command: -logtostderr -docker_only
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 64M
+      placement:
+        constraints:
+          # Run this on all linux nodes
+          - node.platform.os == linux
+
+    # NETWORK:
+    networks:
+      - private-net
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+      - type: bind
+        source: /var/run
+        target: /var/run
+        read_only: true
+      - type: bind
+        source: /sys
+        target: /sys
+        read_only: true
+      - type: bind
+        source: /var/lib/docker
+        target: /var/lib/docker
+        read_only: true
+      - type: bind
+        source: /dev/disk
+        target: /dev/disk
+        read_only: true
+
+  # -- Node exporter --
+  #
+  # Prometheus exporter for hardware and OS metrics exposed by *NIX kernels, written in Go with pluggable metric collectors.
+  #
+  node-exporter:
+    image: prom/node-exporter:v1.8.2 #>convert_sha256
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+      placement:
+        constraints:
+          # Run this on all linux nodes
+          - node.platform.os == linux
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - |
+        set -e
+
+        echo "Setting configuration..."
+        NODE_NAME=$$(cat /etc/nodename)
+        mkdir -p /tmp/node-exporter
+        echo "node_meta{node_id=\"$$NODE_ID\", container_label_com_docker_swarm_node_id=\"$$NODE_ID\", node_name=\"$$NODE_NAME\", instance=\"$$NODE_NAME\"} 1" > /tmp/node-exporter/node-meta.prom
+        echo
+
+        echo "### Running node-exporter ###"
+        echo "/bin/node_exporter $${@}"
+        exec /bin/node_exporter $${@}
+    command:
+      - ""
+      - "--no-collector.ipvs"
+      - "--path.rootfs=/rootfs"
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.textfile.directory=/tmp/node-exporter/"
+      - "--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+|run/credentials/.+)($$|/)"
+
+    # NETWORK:
+    networks:
+      - private-net
+
+    # ENVIRONMENT:
+    environment:
+      - NODE_ID={{.Node.ID}}
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+      - type: bind
+        source: /proc
+        target: /host/proc
+        read_only: true
+      - type: bind
+        source: /sys
+        target: /host/sys
+        read_only: true
+      - type: bind
+        source: /etc/hostname
+        target: /etc/nodename
+        read_only: true
+
+  # -- Grafana Alertmanager --
+  #
+  # Handles alerts sent by client applications such as the Prometheus server.
+  #
+  alertmanager:
+    image: prom/alertmanager:v0.23.0 #>convert_sha256
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 30s
+      placement:
+        constraints:
+          - ${LOKI_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 100M
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - |
+        set -e
+
+        echo "### Setting configuration ###"
+        cat << EOF > /etc/alertmanager/alertmanager.yml
+        route:
+          receiver: 'default-receiver'
+          group_wait: 30s
+          group_interval: 30m
+          group_by: [ alertname ]
+
+        receivers:
+          - name: 'default-receiver'
+
+        EOF
+
+        echo "### Running alertmanager ###"
+        echo "/bin/alertmanager $${@}"
+        exec /bin/alertmanager $${@}
+    command:
+      - ""
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--log.level=debug"
+
+    # NETWORK:
+    networks:
+      - private-net
+    ports:
+      # HTTP server
+      - target: 9093
+        published: 9093
+        protocol: tcp
+        mode: host
+
+    # ENVIRONMENT:
+    environment:
+      <<: *environment_defaults
+      TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: ${ALERTMANAGER_DATA_PATH:?}
+        target: /data
+
+  # -- Grafana Loki (monolithic) --
+  #
+  # Loki is a horizontally scalable, highly available, multi-tenant log aggregation system inspired by Prometheus.
+  # It is designed to be very cost effective and easy to operate. It does not index the contents of the logs,
+  # but rather a set of labels for each log stream.
+  #
+  loki-mono:
+    <<: *loki_service_defaults
+    command: ["", "-target=all", "-legacy-read-mode=false"]
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: ${LOKI_DATA_PATH:?}
+        target: /loki
+
+  # -- Grafana Loki Gateway --
+  #
+  # Loki is a horizontally scalable, highly available, multi-tenant log aggregation system inspired by Prometheus.
+  # It is designed to be very cost effective and easy to operate. It does not index the contents of the logs,
+  # but rather a set of labels for each log stream.
+  #
+  loki-gateway:
+    image: library/nginx:latest
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+      placement:
+        constraints:
+          - ${LOKI_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 100M
+      labels:
+        #### -- Enable traefik router for this service
+        - "traefik.enable=true"
+
+        #### -- Define Traefik middlewares
+        # Basic auth middleware
+        - "traefik.http.middlewares.loki-basic-auth.basicauth.users=${LOKI_USERNAME:?}:${LOKI_PASSWORD_HASH:?}"
+        - "traefik.http.middlewares.loki-basic-auth.basicauth.removeheader=false"
+
+        #### -- Define traefik router for this service
+        - "traefik.http.services.grafana-loki.loadbalancer.server.port=3100"
+        - "traefik.http.routers.grafana-loki.entrypoints=web"
+        # Configure router domain
+        - "traefik.http.routers.grafana-loki.rule=Host(`${TRAEFIK_DOMAIN:?}`) && PathPrefix(`${TRAEFIK_PATH_PREFIX_LOKI}`)"
+        # Enable auth middleware on this service
+        - "traefik.http.routers.grafana-loki.middlewares=loki-basic-auth"
+    healthcheck:
+      test: ["CMD", "service", "nginx", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - |
+        set -e
+
+        wait_for_service() {
+            url="$$1"
+            retries=10
+            count=1
+            echo "Waiting for $$url to be available..."
+            while [ $$count -le $$retries ]; do
+                if curl --silent --fail "$$url" >/dev/null; then
+                    echo "  - $$url is available."
+                    return 0
+                fi
+                count=$$((count + 1))
+                sleep 1
+            done
+            echo "  - $$url is still not available after $$retries attempts. Exiting."
+            return 1
+        }
+
+        # Wait for these endpoints before starting
+        wait_for_service "http://loki-mono:3100$${TRAEFIK_PATH_PREFIX_LOKI:-}/ready" || exit 1
+
+        cat <<EOF > /etc/nginx/nginx.conf
+        user  nginx;
+        worker_processes  5;  ## Default: 1
+
+        events {
+          worker_connections  4096;  ## Default: 1024
+        }
+
+        http {
+          resolver 127.0.0.11 valid=10s;
+
+          default_type application/octet-stream;
+          log_format   main '\$$remote_addr - \$$remote_user [\$$time_local]  \$$status '
+            '"\$$request" \$$body_bytes_sent "\$$http_referer" '
+            '"\$$http_user_agent" "\$$http_x_forwarded_for"';
+          access_log   /dev/stderr  main;
+          sendfile     on;
+          tcp_nopush   on;
+
+          server {
+            listen                9093;
+            client_max_body_size  200M;
+
+            location / {
+              proxy_pass        http://loki-mono:9093;
+              proxy_set_header  Host \$$host;
+              proxy_set_header  X-Real-IP \$$remote_addr;
+              proxy_set_header  X-Forwarded-For \$$proxy_add_x_forwarded_for;
+            }
+          }
+
+          server {
+            listen                3100;
+            client_max_body_size  200M;
+
+            location = / {
+              return 200 'OK';
+              auth_basic off;
+            }
+
+            location = /ping {
+              return 200 'OK';
+              auth_basic off;
+            }
+
+            location = $${TRAEFIK_PATH_PREFIX_LOKI:-}/ring {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+            }
+
+            location = $${TRAEFIK_PATH_PREFIX_LOKI:-}/memberlist {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+            }
+
+            location = $${TRAEFIK_PATH_PREFIX_LOKI:-}/config {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+            }
+
+            location = $${TRAEFIK_PATH_PREFIX_LOKI:-}/ready {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+            }
+
+            location = $${TRAEFIK_PATH_PREFIX_LOKI:-}/metrics {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+            }
+
+            location = $${TRAEFIK_PATH_PREFIX_LOKI:-}/api/prom/push {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+            }
+
+            location = $${TRAEFIK_PATH_PREFIX_LOKI:-}/api/prom/tail {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+              proxy_set_header  Upgrade \$$http_upgrade;
+              proxy_set_header  Connection "upgrade";
+            }
+
+            location ~ $${TRAEFIK_PATH_PREFIX_LOKI:-}/api/prom/.* {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+            }
+
+            location = $${TRAEFIK_PATH_PREFIX_LOKI:-}/loki/api/v1/push {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+            }
+
+            location = $${TRAEFIK_PATH_PREFIX_LOKI:-}/loki/api/v1/tail {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+              proxy_set_header  Upgrade \$$http_upgrade;
+              proxy_set_header  Connection "upgrade";
+            }
+
+            location ~ $${TRAEFIK_PATH_PREFIX_LOKI:-}/loki/api/.* {
+              proxy_pass        http://loki-mono:3100\$$request_uri;
+            }
+          }
+        }
+        EOF
+        cat /etc/nginx/nginx.conf
+
+        /docker-entrypoint.sh nginx -g "daemon off;"
+
+    # NETWORK:
+    networks:
+      - private-net
+      - swarm-public
+    ports:
+      # Loki HTTP server
+      - target: 3100
+        published: 3100
+        protocol: tcp
+        mode: host
+
+    # ENVIRONMENT:
+    environment:
+      <<: *environment_defaults
+      TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
