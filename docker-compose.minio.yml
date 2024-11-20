@@ -95,9 +95,9 @@ services:
         - "homepage.group=Data Management"
         - "homepage.name=MinIO"
         - "homepage.weight=1"
-        - "homepage.icon=https://static-00.iconduck.com/assets.00/grafana-icon-512x512-0v0st1xm.png"
-        - "homepage.description=Grafana is the open source analytics & monitoring solution for every database."
-        - "homepage.href=http://${TRAEFIK_DOMAIN:?}${TRAEFIK_PATH_PREFIX_GRAFANA:?}"
+        - "homepage.icon=https://w7.pngwing.com/pngs/749/248/png-transparent-minio-hd-logo.png"
+        - "homepage.description=High Performance Amazon S3 compatible Object Storage."
+        - "homepage.href=http://${MINIO_TRAEFIK_DOMAIN:?}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 15s
