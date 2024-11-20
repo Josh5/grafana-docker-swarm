@@ -90,6 +90,14 @@ services:
         - "traefik.http.routers.minio.entrypoints=web"
         # Configure router domain
         - "traefik.http.routers.minio.rule=Host(`${MINIO_TRAEFIK_DOMAIN:?}`)"
+
+        #### -- Define homepage configuration
+        - "homepage.group=Data Management"
+        - "homepage.name=MinIO"
+        - "homepage.weight=1"
+        - "homepage.icon=https://w7.pngwing.com/pngs/749/248/png-transparent-minio-hd-logo.png"
+        - "homepage.description=High Performance Amazon S3 compatible Object Storage."
+        - "homepage.href=http://${MINIO_TRAEFIK_DOMAIN:?}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 15s
