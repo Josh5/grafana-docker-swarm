@@ -33,12 +33,12 @@
 #   #-    The prefix for accessing grafana
 #   TRAEFIK_PATH_PREFIX_LOKI=/logs
 #   #@ Container Paths
-#   #-  - GRAFANA_CONFIG_PATH -
+#   #-  - GRAFANA_DATA_PATH -
 #   #-    The Path to the Grafana config directory
-#   GRAFANA_CONFIG_PATH=./appdata/grafana
-#   #-  - PROMETHEUS_CONFIG_PATH -
+#   GRAFANA_DATA_PATH=./appdata/grafana
+#   #-  - PROMETHEUS_DATA_PATH -
 #   #-    The Path to the Prometheus config directory
-#   PROMETHEUS_CONFIG_PATH=./appdata/prometheus
+#   PROMETHEUS_DATA_PATH=./appdata/prometheus
 #   #-  - ALERTMANAGER_DATA_PATH -
 #   #-    The Path to the Alertmanager storage directory
 #   ALERTMANAGER_DATA_PATH=./appdata/alertmanager
@@ -47,10 +47,13 @@
 #   LOKI_DATA_PATH=./appdata/loki
 #   #@ Loki Config
 #   #-  - LOKI_USERNAME -
-#   #-    The username for Grafana Loki
+#   #-    The username for Grafana Loki.
+#   #-    This auth is only applied for traffic from traefik.
 #   LOKI_USERNAME=client
 #   #-  - LOKI_PASSWORD_HASH -
-#   #-    The hash of the password for Grafana Loki. Generate this with:
+#   #-    The hash of the password for Grafana Loki.
+#   #-    This auth is only applied for traffic from traefik.
+#   #-    Generate this with:
 #   #-      > echo -n "Enter password for user '${LOKI_USERNAME:?}': " \
 #   #-      >   && read -s password \
 #   #-      >   && echo "'${password}'" \
@@ -78,21 +81,21 @@
 #
 # <script_start>
 #   > mkdir -p \
-#   >     ${GRAFANA_CONFIG_PATH:?} \
-#   >     ${PROMETHEUS_CONFIG_PATH:?} \
+#   >     ${GRAFANA_DATA_PATH:?} \
+#   >     ${PROMETHEUS_DATA_PATH:?} \
 #   >     ${ALERTMANAGER_DATA_PATH:?} \
 #   >     ${LOKI_DATA_PATH:?}
-#   > sudo chown 472:472 ${GRAFANA_CONFIG_PATH:?}
-#   > sudo chown 65534:65534 ${PROMETHEUS_CONFIG_PATH:?}
+#   > sudo chown 472:472 ${GRAFANA_DATA_PATH:?}
+#   > sudo chown 65534:65534 ${PROMETHEUS_DATA_PATH:?}
 #   > sudo chown 65534:65534 ${ALERTMANAGER_DATA_PATH:?}
 #   > sudo chown 10001:10001 ${LOKI_DATA_PATH:?}
 #   > sudo chmod 755 \
-#   >     ${GRAFANA_CONFIG_PATH:?} \
-#   >     ${PROMETHEUS_CONFIG_PATH:?} \
+#   >     ${GRAFANA_DATA_PATH:?} \
+#   >     ${PROMETHEUS_DATA_PATH:?} \
 #   >     ${ALERTMANAGER_DATA_PATH:?} \
 #   >     ${LOKI_DATA_PATH:?}
-#   > echo && echo "$(cd "${GRAFANA_CONFIG_PATH:?}" && pwd)" && ls -la ${GRAFANA_CONFIG_PATH:?}
-#   > echo && echo "$(cd "${PROMETHEUS_CONFIG_PATH:?}" && pwd)" && ls -la ${PROMETHEUS_CONFIG_PATH:?}
+#   > echo && echo "$(cd "${GRAFANA_DATA_PATH:?}" && pwd)" && ls -la ${GRAFANA_DATA_PATH:?}
+#   > echo && echo "$(cd "${PROMETHEUS_DATA_PATH:?}" && pwd)" && ls -la ${PROMETHEUS_DATA_PATH:?}
 #   > echo && echo "$(cd "${ALERTMANAGER_DATA_PATH:?}" && pwd)" && ls -la ${ALERTMANAGER_DATA_PATH:?}
 #   > echo && echo "$(cd "${LOKI_DATA_PATH:?}" && pwd)" && ls -la ${LOKI_DATA_PATH:?}
 # <script_end>
@@ -393,7 +396,7 @@ services:
     # VOLUMES:
     volumes:
       - type: bind
-        source: ${GRAFANA_CONFIG_PATH:?}
+        source: ${GRAFANA_DATA_PATH:?}
         target: /var/lib/grafana
 
   # -- Prometheus  --
@@ -548,7 +551,7 @@ services:
     # VOLUMES:
     volumes:
       - type: bind
-        source: ${PROMETHEUS_CONFIG_PATH:?}
+        source: ${PROMETHEUS_DATA_PATH:?}
         target: /prometheus
 
   # -- cAdvisor (Container Advisor)  --
