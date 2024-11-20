@@ -90,6 +90,14 @@ services:
         - "traefik.http.routers.minio.entrypoints=web"
         # Configure router domain
         - "traefik.http.routers.minio.rule=Host(`${MINIO_TRAEFIK_DOMAIN:?}`)"
+
+        #### -- Define homepage configuration
+        - "homepage.group=Data Management"
+        - "homepage.name=MinIO"
+        - "homepage.weight=1"
+        - "homepage.icon=https://static-00.iconduck.com/assets.00/grafana-icon-512x512-0v0st1xm.png"
+        - "homepage.description=Grafana is the open source analytics & monitoring solution for every database."
+        - "homepage.href=http://${TRAEFIK_DOMAIN:?}${TRAEFIK_PATH_PREFIX_GRAFANA:?}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 15s

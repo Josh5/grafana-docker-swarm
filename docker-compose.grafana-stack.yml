@@ -376,11 +376,18 @@ services:
         - "traefik.enable=true"
 
         #### -- Define traefik router for this service
-        - "traefik.http.services.grafana-swarm-monitor.loadbalancer.server.port=3000"
-        - "traefik.http.routers.grafana-swarm-monitor.entrypoints=web"
+        - "traefik.http.services.grafana-stack.loadbalancer.server.port=3000"
+        - "traefik.http.routers.grafana-stack.entrypoints=web"
         # Configure router domain
-        - "traefik.http.routers.grafana-swarm-monitor.rule=Host(`${TRAEFIK_DOMAIN:?}`) && PathPrefix(`${TRAEFIK_PATH_PREFIX_GRAFANA:?}`)"
+        - "traefik.http.routers.grafana-stack.rule=Host(`${TRAEFIK_DOMAIN:?}`) && PathPrefix(`${TRAEFIK_PATH_PREFIX_GRAFANA:?}`)"
 
+        #### -- Define homepage configuration
+        - "homepage.group=Observability"
+        - "homepage.name=Grafana"
+        - "homepage.weight=1"
+        - "homepage.icon=https://static-00.iconduck.com/assets.00/grafana-icon-512x512-0v0st1xm.png"
+        - "homepage.description=Grafana is the open source analytics & monitoring solution for every database."
+        - "homepage.href=http://${TRAEFIK_DOMAIN:?}${TRAEFIK_PATH_PREFIX_GRAFANA:?}"
     # NETWORK:
     networks:
       - private-net
