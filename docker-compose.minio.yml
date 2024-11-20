@@ -54,7 +54,10 @@
 # ---------------
 ---
 networks:
-  private-net:
+  swarm-public:
+    # NOTE: This network needs to be manually created and needs to
+    #       be configured for manual container attachment
+    external: true
 
 services:
   # -- MinIO --
@@ -100,7 +103,7 @@ services:
 
     # NETWORK:
     networks:
-      - private-net
+      - swarm-public
     ports:
       # MinIO API server
       - target: 9000
