@@ -1,0 +1,9 @@
+{
+    "log_type": "log_type",
+    "levelname": "level",
+    "metric_name": "metric_name",
+    "service_name": "service_name",
+    "source_env": "source_env",
+    "source_hostname": "source_hostname",
+    "source": "source"
+}

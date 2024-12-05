@@ -1,0 +1,11 @@
+###
+# File: fluent-bit.pt-forward.output.yaml
+# Project: fluent-bit
+# File Created: Friday, 15th November 2024 5:31:48 pm
+# Author: Josh5 (jsunnex@gmail.com)
+# -----
+# Last Modified: Friday, 15th November 2024 5:32:00 pm
+# Modified By: Josh5 (jsunnex@gmail.com)
+###
+
+# -- Custom config for pt forward output added here --

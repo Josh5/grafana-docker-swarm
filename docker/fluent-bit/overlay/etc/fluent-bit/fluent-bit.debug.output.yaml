@@ -1,0 +1,15 @@
+###
+# File: fluent-bit.debug.output.yml
+# Project: fluent-bit
+# File Created: Friday, 15th November 2024 5:02:11 pm
+# Author: Josh5 (jsunnex@gmail.com)
+# -----
+# Last Modified: Friday, 15th November 2024 5:03:02 pm
+# Modified By: Josh5 (jsunnex@gmail.com)
+###
+
+pipeline:
+  outputs:
+    # Debugging output
+    - name: stdout
+      match_regex: ^.*\.stdout_debug.*

@@ -1,0 +1,11 @@
+###
+# File: fluent-bit.tls-forward.output.yaml
+# Project: fluent-bit
+# File Created: Friday, 15th November 2024 4:29:00 pm
+# Author: Josh5 (jsunnex@gmail.com)
+# -----
+# Last Modified: Friday, 15th November 2024 4:29:13 pm
+# Modified By: Josh5 (jsunnex@gmail.com)
+###
+
+# -- Custom config for tls forward output added here --

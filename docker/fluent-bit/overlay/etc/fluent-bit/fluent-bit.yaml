@@ -1,0 +1,114 @@
+# service configuration
+service:
+  # Flush
+  # =====
+  # set an interval of seconds before to flush records to a destination
+  flush: 1
+
+  # Daemon
+  # ======
+  # instruct Fluent Bit to run in foreground or background mode.
+  daemon: Off
+
+  # Log_Level
+  # =========
+  # Set the verbosity level of the service, values can be:
+  #
+  # - error
+  # - warning
+  # - info
+  # - debug
+  # - trace
+  #
+  # by default 'info' is set, that means it includes 'error' and 'warning'.
+  log_level: ${FLUENT_BIT_LOG_LEVEL}
+
+  # Parsers File
+  # ============
+  # specify an optional 'Parsers' configuration file
+  parsers_file: parsers.conf
+
+  # Plugins File
+  # ============
+  # specify an optional 'Plugins' configuration file to load external plugins.
+  plugins_file: plugins.conf
+
+  # HTTP Server
+  # ===========
+  # Enable/Disable the built-in HTTP Server for metrics
+  http_server: On
+  http_listen: 0.0.0.0
+  http_port: 2020
+
+  # Storage
+  # =======
+  # Fluent Bit can use memory and filesystem buffering based mechanisms
+  #
+  # - https://docs.fluentbit.io/manual/administration/buffering-and-storage
+  # - https://docs.fluentbit.io/manual/administration/buffering-and-storage#service-section-configuration
+  #
+  storage.metrics: on
+  storage.path: ${FLUENT_STORAGE_PATH}
+  storage.sync: normal
+  storage.checksum: off
+  storage.backlog.mem_limit: 5M
+
+  # Scheduling
+  # ==========
+  # Determine the waiting time before a retry will happen
+  #
+  # - https://docs.fluentbit.io/manual/administration/scheduling-and-retries
+  #
+  scheduler.cap: 2000
+  scheduler.base: 5
+
+pipeline:
+  inputs:
+    # HTTP input to sit behind an LB
+    - name: http
+      listen: 0.0.0.0
+      port: 24280
+      storage.type: filesystem
+      buffer_chunk_size: 5M
+      buffer_max_size: 1000M
+      threaded: true
+
+    # Forward input configured PT only (for local docker logs)
+    - name: forward
+      listen: 0.0.0.0
+      port: 24228
+      self_hostname: ${HOST_HOSTNAME}
+      storage.type: filesystem
+      buffer_chunk_size: 5M
+      buffer_max_size: 1000M
+      tls: off
+      tls.verify: off
+      threaded: true
+
+    # Forward input configured with TLS certificates
+    - name: forward
+      listen: 0.0.0.0
+      port: 24224
+      shared_key: ${FORWARD_SHARED_KEY}
+      self_hostname: ${HOST_HOSTNAME}
+      storage.type: filesystem
+      buffer_chunk_size: 5M
+      buffer_max_size: 1000M
+      tls: ${ENABLE_FORWARD_TLS}
+      tls.verify: off
+      tls.key_file: ${CERTIFICATES_DIRECTORY}/fluent-bit.pem
+      tls.crt_file: ${CERTIFICATES_DIRECTORY}/fluent-bit.pem
+      threaded: true
+
+  filters:
+    # Ensure required fields are extracted for Grafana Loki
+    - name: lua
+      match: ${FLUENT_BIT_TAG_PREFIX}*
+      script: apply-loki-formatting.lua
+      call: grafana_loki_formatting
+
+includes:
+  - fluent-bit.debug.output.yaml
+  #- fluent-bit.grafana-loki.output.yaml
+  #- fluent-bit.tls-forward.output.yaml
+  #- fluent-bit.pt-forward.output.yaml

@@ -1,0 +1,11 @@
+###
+# File: fluent-bit.grafana-loki.output.yaml
+# Project: fluent-bit
+# File Created: Thursday, 7th November 2024 9:47:43 am
+# Author: Josh5 (jsunnex@gmail.com)
+# -----
+# Last Modified: Thursday, 7th November 2024 9:47:54 am
+# Modified By: Josh5 (jsunnex@gmail.com)
+###
+
+# -- Custom config for grafana loki output added here --
