@@ -66,7 +66,7 @@ services:
   # cloud native workloads like AI.
   #
   minio:
-    image: minio/minio@sha256:ac591851803a79aee64bc37f66d77c56b0a4b6e12d9e5356380f4105510f2332
+    image: minio/minio@sha256:1dce27c494a16bae114774f1cec295493f3613142713130c2d22dd5696be6ad3
     user: ${PUID:-1000}:${PGID:-1000}
     deploy:
       replicas: 1
