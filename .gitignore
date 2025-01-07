@@ -10,3 +10,4 @@
 docker-swarm-templates/appdata/
 docker-swarm-templates/*.env
 docker-swarm-templates/*.sh
+**/venv/**

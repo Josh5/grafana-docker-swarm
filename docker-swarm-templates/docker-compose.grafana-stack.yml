@@ -39,6 +39,15 @@
 #   #-  - PROMETHEUS_DATA_PATH -
 #   #-    The Path to the Prometheus config directory
 #   PROMETHEUS_DATA_PATH=./appdata/prometheus
+#   #-  - PROMETHEUS_BASIC_AUTH_USER -
+#   #-    Add a basic auth username to the API
+#   PROMETHEUS_BASIC_AUTH_USER=admin
+#   #-  - PROMETHEUS_BASIC_AUTH_PASS -
+#   #-    Add a password for the PROMETHEUS_BASIC_AUTH_USER
+#   PROMETHEUS_BASIC_AUTH_PASS=mySecretPassword
+#   #-  - PROMETHEUS_BASIC_AUTH_PASS_HASH -
+#   #-    The bcrypt hash of the PROMETHEUS_BASIC_AUTH_PASS
+#   PROMETHEUS_BASIC_AUTH_PASS_HASH=$2y$10$osUVO0tt8IygF7.M3PibIuVFY3TNnusNyjEZ.br3w.tHPhSd7lpsa
 #   #-  - ALERTMANAGER_DATA_PATH -
 #   #-    The Path to the Alertmanager storage directory
 #   ALERTMANAGER_DATA_PATH=./appdata/alertmanager
@@ -301,70 +310,15 @@ services:
   #
   grafana:
     image: grafana/grafana:11.3.0 #>convert_sha256
-    entrypoint:
-      - "/bin/bash"
-      - "-c"
-      - |
-        set -e
-        echo "### Setting configuration ###"
-        echo "  - Set Datasources"
-        cat << EOF > /etc/grafana/provisioning/datasources/provisioning-datasources.yaml
-        apiVersion: 1
-
-        datasources:
-          - name: Prometheus
-            type: prometheus
-            uid: prometheus
-            access: proxy
-            basicAuth: false
-            orgId: 1
-            url: http://prometheus:9090
-            version: 1
-            editable: false
-            isDefault: false
-
-          - name: Loki
-            type: loki
-            uid: loki
-            access: proxy
-            basicAuth: false
-            url: http://loki-gateway:3100$${TRAEFIK_PATH_PREFIX_LOKI:-}
-            version: 1
-            jsonData:
-              httpHeaderName1: "X-Scope-OrgID"
-            secureJsonData:
-              httpHeaderValue1: "tenant1"
-            editable: false
-            isDefault: false
-
-          - name: Alertmanager
-            type: alertmanager
-            access: proxy
-            basicAuth: false
-            url: http://alertmanager:9093
-            jsonData:
-              # Valid options for implementation include mimir, cortex and prometheus
-              implementation: prometheus
-              # Whether or not Grafana should send alert instances to this Alertmanager
-              handleGrafanaManagedAlerts: false
-            editable: false
-            isDefault: false
-
-        EOF
-        echo
-
-        echo "### Running /run.sh ###"
-        source /run.sh
-
-    ports:
-      - target: 3000
-        published: 3000
-        protocol: tcp
-        mode: host
     deploy:
+      mode: replicated
       replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
+      update_config:
+        delay: 10s
+        order: stop-first
       resources:
         reservations:
           memory: 512M
@@ -388,10 +342,119 @@ services:
         - "homepage.icon=https://static-00.iconduck.com/assets.00/grafana-icon-512x512-0v0st1xm.png"
         - "homepage.description=Grafana is the open source analytics & monitoring solution for every database."
         - "homepage.href=http://${TRAEFIK_DOMAIN:?}${TRAEFIK_PATH_PREFIX_GRAFANA:?}"
+    entrypoint:
+      - "/bin/bash"
+      - "-c"
+      - |
+        set -e
+        echo "### Setting configuration ###"
+        echo "  - Set Datasources"
+        DATASOURCES_CONFIG=$$(
+            cat <<EOF
+        apiVersion: 1
+        prune: true
+        datasources:
+
+        EOF
+        )
+
+        # Add the Prometheus source
+        DATASOURCES_CONFIG="$${DATASOURCES_CONFIG}"$$(
+            cat <<EOF
+            
+          - name: Prometheus
+            type: prometheus
+            uid: prometheus
+            version: $$(date +%s)
+            access: proxy
+            orgId: 1
+            url: http://prometheus:9090
+            editable: false
+            isDefault: false
+
+        EOF
+        )
+        if ([ "X$${PROM_BASIC_AUTH_USER}" != "X" ] && [ "X$${PROM_BASIC_AUTH_PASS}" != "X" ]); then
+          echo "  - Enable Basic Auth for Prometheus connection"
+          DATASOURCES_CONFIG="$${DATASOURCES_CONFIG}"$$(
+            cat <<EOF
+
+            basicAuth: true
+            basicAuthUser: $${PROM_BASIC_AUTH_USER}
+            secureJsonData:
+              basicAuthPassword: $${PROM_BASIC_AUTH_PASS}
+        EOF
+        )
+        else
+          echo "  - Disable Basic Auth for Prometheus connection"
+          DATASOURCES_CONFIG="$${DATASOURCES_CONFIG}"$$(
+            cat <<EOF
+
+            basicAuth: false
+
+        EOF
+        )
+        fi
+
+        # Add the Loki source
+        DATASOURCES_CONFIG="$${DATASOURCES_CONFIG}"$$(
+            cat <<EOF
+
+          - name: Loki
+            type: loki
+            uid: loki
+            version: $$(date +%s)
+            access: proxy
+            basicAuth: false
+            url: http://loki-gateway:3100$${TRAEFIK_PATH_PREFIX_LOKI:-}
+            jsonData:
+              httpHeaderName1: "X-Scope-OrgID"
+            secureJsonData:
+              httpHeaderValue1: "tenant1"
+            editable: false
+            isDefault: false
+
+        EOF
+        )
+
+        # Add the Alertmanager source
+        DATASOURCES_CONFIG="$${DATASOURCES_CONFIG}"$$(
+            cat <<EOF
+
+          - name: Alertmanager
+            type: alertmanager
+            version: $$(date +%s)
+            access: proxy
+            basicAuth: false
+            url: http://alertmanager:9093
+            jsonData:
+              # Valid options for implementation include mimir, cortex and prometheus
+              implementation: prometheus
+              # Whether or not Grafana should send alert instances to this Alertmanager
+              handleGrafanaManagedAlerts: false
+            editable: false
+            isDefault: false
+
+        EOF
+        )
+
+        echo "$${DATASOURCES_CONFIG:-}" > /etc/grafana/provisioning/datasources/provisioning-datasources.yaml
+        echo
+        cat /etc/grafana/provisioning/datasources/provisioning-datasources.yaml
+        echo
+
+        echo "### Running /run.sh ###"
+        source /run.sh
+
     # NETWORK:
     networks:
       - private-net
       - swarm-public
+    ports:
+      - target: 3000
+        published: 3000
+        protocol: tcp
+        mode: host
 
     # ENVIRONMENT:
     environment:
@@ -416,6 +479,9 @@ services:
       GF_SMTP_SKIP_VERIFY: ${GF_SMTP_SKIP_VERIFY:-}
       GF_SMTP_FROM_ADDRESS: ${GF_SMTP_FROM_ADDRESS:-}
       GF_SMTP_STARTTLS_POLICY: ${GF_SMTP_STARTTLS_POLICY:-}
+      # Prometheus
+      PROM_BASIC_AUTH_USER: ${PROMETHEUS_BASIC_AUTH_USER:-}
+      PROM_BASIC_AUTH_PASS: ${PROMETHEUS_BASIC_AUTH_PASS:-}
 
     # VOLUMES:
     volumes:
@@ -429,11 +495,16 @@ services:
   # time series database and modern alerting approach.
   #
   prometheus:
-    image: prom/prometheus:v2.44.0 #>convert_sha256
+    image: prom/prometheus:v3.0.1 #>convert_sha256
     deploy:
+      mode: replicated
       replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 1s
+      update_config:
+        delay: 10s
+        order: stop-first
       resources:
         limits:
           memory: 1.5G
@@ -448,16 +519,25 @@ services:
       - |
         set -e
 
-        echo "### Setting configuration ###"
-        echo "  - Write out base config"
-        cat << EOF > /etc/prometheus/prometheus.yml
-        # Custom config
+        PROM_GLOBAL_CONFIG=""
+        PROM_SCRAPE_CONFIGS=""
+        PROM_REMOTE_WRITE=""
+        PROM_WEB_BASIC_AUTH=""
+        PROM_ADDITIONAL_EXEC_ARGS=""
 
-        global:
+        echo "### Setting configuration ###"
+        PROM_GLOBAL_CONFIG=$$(
+            cat <<EOF
+
           scrape_interval:     15s
           evaluation_interval: 15s
 
-        scrape_configs:
+        EOF
+        )
+
+        PROM_SCRAPE_CONFIGS=$$(
+            cat <<EOF
+
           - job_name: 'prometheus'
             scrape_interval: 1m
             static_configs:
@@ -492,37 +572,81 @@ services:
                 regex: (.*)
                 target_label: instance
                 replacement: \$$1
-                  
+
         EOF
-        echo
+        )
 
         if [ "X$${TRAEFIK_METRICS_SOURCE}" != "X" ]; then
           echo "  - Adding Traefik Metrics"
-          cat << EOF >> /etc/prometheus/prometheus.yml
+          PROM_SCRAPE_CONFIGS="$${PROM_SCRAPE_CONFIGS}"$$(
+            cat <<EOF
 
           - job_name: traefik
             scrape_interval: 2m
             metrics_path: /metrics
             static_configs:
             - targets: [$${TRAEFIK_METRICS_SOURCE}]
+
         EOF
+        )
           if [ "X$${NR_REMOTE_WRITE_KEY}" != "X" ]; then
-            cat << EOF >> /etc/prometheus/prometheus.yml
+          PROM_SCRAPE_CONFIGS="$${PROM_SCRAPE_CONFIGS}"$$(
+            cat <<EOF
+
               labels:
                 group: traefik
+
         EOF
+        )
           fi
         fi
 
         if [ "X$${NR_REMOTE_WRITE_KEY}" != "X" ]; then
           echo "  - Adding New Relic Remote Write"
-          cat << EOF >> /etc/prometheus/prometheus.yml
+          PROM_REMOTE_WRITE="$${PROM_REMOTE_WRITE}"$$(
+            cat <<EOF
 
-        remote_write:
-        - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=$${NR_DATA_SOURCE_NAME}
-          authorization:
-            credentials: $${NR_REMOTE_WRITE_KEY}
+          - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=$${NR_DATA_SOURCE_NAME}
+            authorization:
+              credentials: $${NR_REMOTE_WRITE_KEY}
+
         EOF
+        )
+        fi
+
+        if ([ "X$${BASIC_AUTH_USER}" != "X" ] && [ "X$${BASIC_AUTH_PASS}" != "X" ]); then
+          echo "  - Adding Basic Auth to API and UI endpoints"
+          PROM_WEB_BASIC_AUTH="$${PROM_WEB_BASIC_AUTH}"$$(
+            cat <<EOF
+
+          $${BASIC_AUTH_USER}: $${BASIC_AUTH_PASS}
+
+        EOF
+        )
+        fi
+
+        # Build config files
+        echo "# Custom config" > /etc/prometheus/prometheus.yml
+        if [ "X$${PROM_GLOBAL_CONFIG:-}" != "X" ]; then
+          echo "global:" >> /etc/prometheus/prometheus.yml
+          echo "$${PROM_GLOBAL_CONFIG}" >> /etc/prometheus/prometheus.yml
+        fi
+        if [ "X$${PROM_SCRAPE_CONFIGS:-}" != "X" ]; then
+          echo "scrape_configs:" >> /etc/prometheus/prometheus.yml
+          echo "$${PROM_SCRAPE_CONFIGS}" >> /etc/prometheus/prometheus.yml
+        fi
+        if [ "X$${PROM_REMOTE_WRITE:-}" != "X" ]; then
+          echo "remote_write:" >> /etc/prometheus/prometheus.yml
+          echo "$${PROM_REMOTE_WRITE}" >> /etc/prometheus/prometheus.yml
+        fi
+        if [ "X$${PROM_WEB_BASIC_AUTH:-}" != "X" ]; then
+          echo "basic_auth_users:" >> /etc/prometheus/web.yml
+          echo "$${PROM_WEB_BASIC_AUTH}" >> /etc/prometheus/web.yml
+        fi
+
+        # Enable web config
+        if [ -f /etc/prometheus/web.yml ]; then
+          PROM_ADDITIONAL_EXEC_ARGS="$${PROM_ADDITIONAL_EXEC_ARGS:-} --web.config.file=/etc/prometheus/web.yml"
         fi
 
         export PROMETHEUS_LOG_LEVEL="error"
@@ -531,6 +655,13 @@ services:
           echo
           echo "Print prometheus config..."
           cat /etc/prometheus/prometheus.yml
+          echo
+          if [ -f /etc/prometheus/web.yml ]; then
+            echo "Print & test web config..."
+            cat /etc/prometheus/web.yml
+            echo
+            promtool check web-config /etc/prometheus/web.yml
+          fi
 
           echo
           echo "Print prometheus command..."
@@ -541,7 +672,7 @@ services:
             --storage.tsdb.retention.time=7d \
             --web.console.libraries=/usr/share/prometheus/console_libraries \
             --web.console.templates=/usr/share/prometheus/consoles \
-            --web.external-url=http://localhost:9090
+            --web.external-url=http://localhost:9090 $${PROM_ADDITIONAL_EXEC_ARGS:-}
         fi
 
         echo "Running prometheus..."
@@ -552,7 +683,7 @@ services:
           --storage.tsdb.retention.time=7d \
           --web.console.libraries=/usr/share/prometheus/console_libraries \
           --web.console.templates=/usr/share/prometheus/consoles \
-          --web.external-url=http://localhost:9090
+          --web.external-url=http://localhost:9090 $${PROM_ADDITIONAL_EXEC_ARGS:-}
 
     # NETWORK:
     networks:
@@ -571,6 +702,9 @@ services:
       # Additional Metric Sources
       TRAEFIK_METRICS_SOURCE: ${TRAEFIK_METRICS_SOURCE:-}
       TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
+      # Web basic auth
+      BASIC_AUTH_USER: ${PROMETHEUS_BASIC_AUTH_USER:-}
+      BASIC_AUTH_PASS: ${PROMETHEUS_BASIC_AUTH_PASS_HASH:-}
 
     # VOLUMES:
     volumes:
