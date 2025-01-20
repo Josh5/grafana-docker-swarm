@@ -1263,19 +1263,19 @@
             },
             {
                 "current": {
-                    "text": "",
-                    "value": ""
+                    "text": ".*",
+                    "value": ".*"
                 },
                 "label": "domain_filter_regex",
                 "name": "domain_filter_regex",
                 "options": [
                     {
                         "selected": true,
-                        "text": "",
-                        "value": ""
+                        "text": ".*",
+                        "value": ".*"
                     }
                 ],
-                "query": "",
+                "query": ".*",
                 "type": "textbox"
             }
         ]
