@@ -649,6 +649,11 @@ services:
           PROM_ADDITIONAL_EXEC_ARGS="$${PROM_ADDITIONAL_EXEC_ARGS:-} --web.config.file=/etc/prometheus/web.yml"
         fi
 
+        # Enable remote write receiver
+        if [ "$${ENABLE_REMOTE_WRITE_RECEIVER}" = "true" ]; then
+          PROM_ADDITIONAL_EXEC_ARGS="$${PROM_ADDITIONAL_EXEC_ARGS:-} --web.enable-remote-write-receiver"
+        fi
+
         export PROMETHEUS_LOG_LEVEL="error"
         if [ "$${PROMETHEUS_DEBUGGING}" = "true" ]; then
           export PROMETHEUS_LOG_LEVEL="debug"
@@ -688,6 +693,11 @@ services:
     # NETWORK:
     networks:
       - private-net
+    ports:
+      - target: 9090
+        published: 9090
+        protocol: tcp
+        mode: host
 
     # ENVIRONMENT:
     environment:
@@ -696,6 +706,8 @@ services:
       # -- Config
       # Enable debugging
       PROMETHEUS_DEBUGGING: ${PROMETHEUS_DEBUGGING:-false}
+      # Enable remote write receiver mode
+      ENABLE_REMOTE_WRITE_RECEIVER: ${ENABLE_REMOTE_WRITE_RECEIVER:-false}
       # NewRelic Config
       NR_REMOTE_WRITE_KEY: ${NR_REMOTE_WRITE_KEY:-}
       NR_DATA_SOURCE_NAME: ${NR_DATA_SOURCE_NAME:-}
