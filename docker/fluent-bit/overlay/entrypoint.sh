@@ -5,8 +5,8 @@
 # File Created: Friday, 18th October 2024 5:05:51 pm
 # Author: Josh5 (jsunnex@gmail.com)
 # -----
-# Last Modified: Friday, 6th December 2024 7:27:14 am
-# Modified By: Josh5 (jsunnex@gmail.com)
+# Last Modified: Monday, 27th January 2025 2:14:02 pm
+# Modified By: Josh.5 (jsunnex@gmail.com)
 ###
 set -eu
 
@@ -34,7 +34,7 @@ mkdir -p \
 #
 print_log "info" "Generating certificates in '${CERTIFICATES_DIRECTORY:?}'"
 export CERTIFICATE_FILE_PATH="${CERTIFICATES_DIRECTORY:?}/fluent-bit.pem"
-if [[ -n "${ENABLE_FORWARD_TLS:-}" && "${ENABLE_FORWARD_TLS,,}" =~ ^(true|t)$ ]]; then
+if [[ -n "${ENABLE_FORWARD_INPUT_TLS:-}" && "${ENABLE_FORWARD_INPUT_TLS,,}" =~ ^(true|t)$ ]]; then
     if [ -f "${CERTIFICATE_FILE_PATH:?}" ]; then
         print_log "info" "Checking expiration date on existing ${CERTIFICATE_FILE_PATH:?}"
         # Days before expiration to check
@@ -200,7 +200,7 @@ pipeline:
       match: ${output_tag_match:?}
       host: ${TLS_FORWARD_OUTPUT_HOST:?}
       port: ${TLS_FORWARD_OUTPUT_PORT:?}
-      shared_key: ${FORWARD_SHARED_KEY:?}
+      shared_key: ${TLS_FORWARD_OUTPUT_SHARED_KEY:?}
       tls: on
       tls.verify: ${TLS_FORWARD_OUTPUT_VERIFY:-off}
 EOF

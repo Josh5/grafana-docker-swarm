@@ -89,12 +89,12 @@ pipeline:
     - name: forward
       listen: 0.0.0.0
       port: 24224
-      shared_key: ${FORWARD_SHARED_KEY}
+      shared_key: ${FORWARD_INPUT_SHARED_KEY}
       self_hostname: ${HOST_HOSTNAME}
       storage.type: filesystem
       buffer_chunk_size: 5M
       buffer_max_size: 1000M
-      tls: ${ENABLE_FORWARD_TLS}
+      tls: ${ENABLE_FORWARD_INPUT_TLS}
       tls.verify: off
       tls.key_file: ${CERTIFICATES_DIRECTORY}/fluent-bit.pem
       tls.crt_file: ${CERTIFICATES_DIRECTORY}/fluent-bit.pem
