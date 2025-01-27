@@ -219,7 +219,7 @@
                         "uid": "${DS_LOKI}"
                     },
                     "editorMode": "code",
-                    "expr": "sum by (OriginStatus) (count_over_time({service_name=\"traefik\", source_env=~\"$env\"}|= \"RequestProtocol\" | json | RequestAddr =~ `$domain_filter_regex` |  __error__=\"\" [$__interval]))",
+                    "expr": "sum by (OriginStatus) (count_over_time({service_name=\"traefik\", source_env=~\"$env\"} |= `OriginStatus` | json | RequestAddr =~ `$domain_filter_regex` |  __error__=\"\" [$__interval]))",
                     "legendFormat": "HTTP Status: {{OriginStatus}}",
                     "queryType": "range",
                     "refId": "A"
@@ -756,7 +756,7 @@
                         "uid": "${DS_LOKI}"
                     },
                     "editorMode": "code",
-                    "expr": "{service_name=\"traefik\", source_env=~\"$env\"} |= \"RequestProtocol\" | json | RequestAddr =~ `$domain_filter_regex` | line_format \"Status:{{.OriginStatus}} Client From {{.ClientAddr}} {{.RequestMethod}} {{.RequestAddr}}{{.RequestPath}} Route To {{.ServiceAddr}}\"",
+                    "expr": "{service_name=\"traefik\", source_env=~\"$env\"} |= \"RequestProtocol\" | json | RequestAddr =~ `$domain_filter_regex` | line_format \"Status:{{.OriginStatus}} Client From {{.ClientHost}} {{.RequestMethod}} {{.RequestAddr}}{{.RequestPath}} Route To {{.ServiceAddr}}\"",
                     "legendFormat": "",
                     "queryType": "range",
                     "refId": "A"
