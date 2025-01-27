@@ -94,7 +94,7 @@ pipeline:
       storage.type: filesystem
       buffer_chunk_size: 5M
       buffer_max_size: 1000M
-      tls: ${ENABLE_FORWARD_INPUT_TLS}
+      tls: ${ENABLE_TLS_ON_FORWARD_INPUT}
       tls.verify: off
       tls.key_file: ${CERTIFICATES_DIRECTORY}/fluent-bit.pem
       tls.crt_file: ${CERTIFICATES_DIRECTORY}/fluent-bit.pem

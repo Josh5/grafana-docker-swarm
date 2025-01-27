@@ -5,7 +5,7 @@
 # File Created: Friday, 18th October 2024 5:05:51 pm
 # Author: Josh5 (jsunnex@gmail.com)
 # -----
-# Last Modified: Monday, 27th January 2025 2:14:02 pm
+# Last Modified: Monday, 27th January 2025 2:48:16 pm
 # Modified By: Josh.5 (jsunnex@gmail.com)
 ###
 set -eu
@@ -34,7 +34,7 @@ mkdir -p \
 #
 print_log "info" "Generating certificates in '${CERTIFICATES_DIRECTORY:?}'"
 export CERTIFICATE_FILE_PATH="${CERTIFICATES_DIRECTORY:?}/fluent-bit.pem"
-if [[ -n "${ENABLE_FORWARD_INPUT_TLS:-}" && "${ENABLE_FORWARD_INPUT_TLS,,}" =~ ^(true|t)$ ]]; then
+if [[ -n "${ENABLE_TLS_ON_FORWARD_INPUT:-}" && "${ENABLE_TLS_ON_FORWARD_INPUT,,}" =~ ^(true|t)$ ]]; then
     if [ -f "${CERTIFICATE_FILE_PATH:?}" ]; then
         print_log "info" "Checking expiration date on existing ${CERTIFICATE_FILE_PATH:?}"
         # Days before expiration to check

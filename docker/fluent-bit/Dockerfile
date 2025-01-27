@@ -42,7 +42,7 @@ ENV \
     FLUENT_BIT_TAG_PREFIX=flb_glf. \
     HOST_HOSTNAME=grafana-fluent-bit \
     FORWARD_INPUT_SHARED_KEY=1234567890 \
-    ENABLE_FORWARD_INPUT_TLS=true \
+    ENABLE_TLS_ON_FORWARD_INPUT=true \
     FLUENT_STORAGE_PATH=/var/fluent-bit/storage \
     CERTIFICATES_DIRECTORY=/etc/fluent-bit/certs \
     USE_EXISTING_CERT=false \
