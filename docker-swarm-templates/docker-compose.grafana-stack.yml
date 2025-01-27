@@ -29,8 +29,11 @@
 #   #-  - TRAEFIK_PATH_PREFIX_GRAFANA -
 #   #-    The prefix for accessing grafana
 #   TRAEFIK_PATH_PREFIX_GRAFANA=/dashboard
+#   #-  - TRAEFIK_PATH_PREFIX_PROMETHEUS -
+#   #-    The prefix for accessing prometheus' API
+#   TRAEFIK_PATH_PREFIX_PROMETHEUS=/prom
 #   #-  - TRAEFIK_PATH_PREFIX_LOKI -
-#   #-    The prefix for accessing grafana
+#   #-    The prefix for accessing loki's API
 #   TRAEFIK_PATH_PREFIX_LOKI=/logs
 #   #@ Container Paths
 #   #-  - GRAFANA_DATA_PATH -
@@ -39,6 +42,16 @@
 #   #-  - PROMETHEUS_DATA_PATH -
 #   #-    The Path to the Prometheus config directory
 #   PROMETHEUS_DATA_PATH=./appdata/prometheus
+#   #-  - ALERTMANAGER_DATA_PATH -
+#   #-    The Path to the Alertmanager storage directory
+#   ALERTMANAGER_DATA_PATH=./appdata/alertmanager
+#   #-  - LOKI_DATA_PATH -
+#   #-    The Path to the Loki storage directory
+#   LOKI_DATA_PATH=./appdata/loki
+#   #@ Prometheus Config
+#   #-  - PROMETHEUS_DEBUGGING -
+#   #-    Enable debugging
+#   PROMETHEUS_DEBUGGING=false
 #   #-  - PROMETHEUS_BASIC_AUTH_USER -
 #   #-    Add a basic auth username to the API
 #   PROMETHEUS_BASIC_AUTH_USER=admin
@@ -47,13 +60,15 @@
 #   PROMETHEUS_BASIC_AUTH_PASS=mySecretPassword
 #   #-  - PROMETHEUS_BASIC_AUTH_PASS_HASH -
 #   #-    The bcrypt hash of the PROMETHEUS_BASIC_AUTH_PASS
+#   #-      > import getpass
+#   #-      > import bcrypt
+#   #-      > password = getpass.getpass("password: ")
+#   #-      > hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+#   #-      > print(hashed_password.decode())
 #   PROMETHEUS_BASIC_AUTH_PASS_HASH=$2y$10$osUVO0tt8IygF7.M3PibIuVFY3TNnusNyjEZ.br3w.tHPhSd7lpsa
-#   #-  - ALERTMANAGER_DATA_PATH -
-#   #-    The Path to the Alertmanager storage directory
-#   ALERTMANAGER_DATA_PATH=./appdata/alertmanager
-#   #-  - LOKI_DATA_PATH -
-#   #-    The Path to the Loki storage directory
-#   LOKI_DATA_PATH=./appdata/loki
+#   #-  - PROMETHEUS_ENABLE_REMOTE_WRITE_RECEIVER -
+#   #-    Enable remote write receiver mode
+#   PROMETHEUS_ENABLE_REMOTE_WRITE_RECEIVER=false
 #   #@ Loki Config
 #   #-  - LOKI_USERNAME -
 #   #-    The username for Grafana Loki.
@@ -77,6 +92,9 @@
 #   #-  - LOKI_S3_BUCKET_NAME -
 #   #-    The S3 bucket name.
 #   LOKI_S3_BUCKET_NAME=loki-data
+#   #-  - AWS_REGION -
+#   #-    The region hosting the S3 bucket
+#   AWS_REGION=eu-west-1
 #   #-  - ACCESS_KEY_ID -
 #   #-    The username for S3 bucket
 #   ACCESS_KEY_ID=loki
@@ -368,7 +386,7 @@ services:
             version: $$(date +%s)
             access: proxy
             orgId: 1
-            url: http://prometheus:9090
+            url: http://prometheus:9090$${PROM_WEB_PATH_PREFIX:-}
             editable: false
             isDefault: false
 
@@ -480,6 +498,7 @@ services:
       GF_SMTP_FROM_ADDRESS: ${GF_SMTP_FROM_ADDRESS:-}
       GF_SMTP_STARTTLS_POLICY: ${GF_SMTP_STARTTLS_POLICY:-}
       # Prometheus
+      PROM_WEB_PATH_PREFIX: ${TRAEFIK_PATH_PREFIX_PROMETHEUS:-}
       PROM_BASIC_AUTH_USER: ${PROMETHEUS_BASIC_AUTH_USER:-}
       PROM_BASIC_AUTH_PASS: ${PROMETHEUS_BASIC_AUTH_PASS:-}
 
@@ -513,6 +532,16 @@ services:
       placement:
         constraints:
           - ${PROMETHEUS_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      labels:
+        #### -- Enable traefik router for this service
+        - "traefik.enable=true"
+
+        #### -- Define traefik router for this service
+        - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+        - "traefik.http.routers.prometheus.entrypoints=web"
+        # Configure router domain
+        - "traefik.http.routers.prometheus.rule=Host(`${TRAEFIK_DOMAIN:?}`) && PathPrefix(`${TRAEFIK_PATH_PREFIX_PROMETHEUS:?}`)"
+
     entrypoint:
       - "/bin/sh"
       - "-c"
@@ -646,11 +675,22 @@ services:
 
         # Enable web config
         if [ -f /etc/prometheus/web.yml ]; then
+          echo "  - Enable custom web config"
           PROM_ADDITIONAL_EXEC_ARGS="$${PROM_ADDITIONAL_EXEC_ARGS:-} --web.config.file=/etc/prometheus/web.yml"
         fi
 
+        # Configure a path prefix
+        if [ "X$${PROMETHEUS_WEB_PATH_PREFIX:-}" != "X" ]; then
+          echo "  - Configure to run with custom web path prefix as $${PROMETHEUS_WEB_PATH_PREFIX:?}"
+          PROM_ADDITIONAL_EXEC_ARGS="$${PROM_ADDITIONAL_EXEC_ARGS:-} --web.external-url=http://localhost:9090$${PROMETHEUS_WEB_PATH_PREFIX:?} --web.route-prefix=$${PROMETHEUS_WEB_PATH_PREFIX:?}"
+        else
+          echo "  - Configure to run with no web path prefix"
+          PROM_ADDITIONAL_EXEC_ARGS="$${PROM_ADDITIONAL_EXEC_ARGS:-} --web.external-url=http://localhost:9090"
+        fi
+
         # Enable remote write receiver
-        if [ "$${ENABLE_REMOTE_WRITE_RECEIVER}" = "true" ]; then
+        if [ "$${PROMETHEUS_ENABLE_REMOTE_WRITE_RECEIVER}" = "true" ]; then
+          echo "  - Enable remote write reciever mode"
           PROM_ADDITIONAL_EXEC_ARGS="$${PROM_ADDITIONAL_EXEC_ARGS:-} --web.enable-remote-write-receiver"
         fi
 
@@ -677,7 +717,7 @@ services:
             --storage.tsdb.retention.time=7d \
             --web.console.libraries=/usr/share/prometheus/console_libraries \
             --web.console.templates=/usr/share/prometheus/consoles \
-            --web.external-url=http://localhost:9090 $${PROM_ADDITIONAL_EXEC_ARGS:-}
+            $${PROM_ADDITIONAL_EXEC_ARGS:-}
         fi
 
         echo "Running prometheus..."
@@ -688,11 +728,12 @@ services:
           --storage.tsdb.retention.time=7d \
           --web.console.libraries=/usr/share/prometheus/console_libraries \
           --web.console.templates=/usr/share/prometheus/consoles \
-          --web.external-url=http://localhost:9090 $${PROM_ADDITIONAL_EXEC_ARGS:-}
+          $${PROM_ADDITIONAL_EXEC_ARGS:-}
 
     # NETWORK:
     networks:
       - private-net
+      - swarm-public
     ports:
       - target: 9090
         published: 9090
@@ -707,7 +748,9 @@ services:
       # Enable debugging
       PROMETHEUS_DEBUGGING: ${PROMETHEUS_DEBUGGING:-false}
       # Enable remote write receiver mode
-      ENABLE_REMOTE_WRITE_RECEIVER: ${ENABLE_REMOTE_WRITE_RECEIVER:-false}
+      PROMETHEUS_ENABLE_REMOTE_WRITE_RECEIVER: ${PROMETHEUS_ENABLE_REMOTE_WRITE_RECEIVER:-false}
+      # Web path prefix
+      PROMETHEUS_WEB_PATH_PREFIX: ${TRAEFIK_PATH_PREFIX_PROMETHEUS:?}
       # NewRelic Config
       NR_REMOTE_WRITE_KEY: ${NR_REMOTE_WRITE_KEY:-}
       NR_DATA_SOURCE_NAME: ${NR_DATA_SOURCE_NAME:-}
@@ -716,7 +759,7 @@ services:
       TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
       # Web basic auth
       BASIC_AUTH_USER: ${PROMETHEUS_BASIC_AUTH_USER:-}
-      BASIC_AUTH_PASS: ${PROMETHEUS_BASIC_AUTH_PASS_HASH:-}
+      BASIC_AUTH_PASS: ${PROMETHEUS_BASIC_AUTH_PASS_HASH:?}
 
     # VOLUMES:
     volumes:
