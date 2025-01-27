@@ -152,6 +152,18 @@
 #   #-  - FLUENTBIT_PT_FORWARD_OUTPUT_PORT -
 #   #-    The connection port of the Fluent-Bit plain-text Forward output.
 #   FLUENTBIT_PT_FORWARD_OUTPUT_PORT=
+#   #-  - FLUENTBIT_PUBLISHED_HTTP_SERVER_PORT -
+#   #-    Specify a custom port to publish to the host for the Fluent-Bit HTTP server. Defaults to 2020 if left blank.
+#   FLUENTBIT_PUBLISHED_HTTP_SERVER_PORT=2020
+#   #-  - FLUENTBIT_PUBLISHED_HTTP_INPUT_PORT -
+#   #-    Specify a custom port to publish to the host for the Fluent-Bit HTTP Input. Defaults to 24280 if left blank.
+#   FLUENTBIT_PUBLISHED_HTTP_INPUT_PORT=24280
+#   #-  - FLUENTBIT_PUBLISHED_TLS_FORWARD_INPUT_PORT -
+#   #-    Specify a custom port to publish to the host for the Fluent-Bit TLS Forward Input. Defaults to 24224 if left blank.
+#   FLUENTBIT_PUBLISHED_TLS_FORWARD_INPUT_PORT=24224
+#   #-  - FLUENTBIT_PUBLISHED_PT_FORWARD_INPUT_PORT -
+#   #-    Specify a custom port to publish to the host for the Fluent-Bit PT Forward Input. Defaults to 24228 if left blank.
+#   FLUENTBIT_PUBLISHED_PT_FORWARD_INPUT_PORT=24228
 # <config_end>
 #
 # ---------------
@@ -1063,30 +1075,30 @@ services:
     ports:
       # Fluent Bit HTTP server (can be used for health checks)
       - target: 2020
-        published: 2020
+        published: ${FLUENTBIT_PUBLISHED_HTTP_SERVER_PORT:-2020}
         protocol: tcp
         mode: host
       # Fluent Bit log ingest ports
       - target: 24280
-        published: 24280
+        published: ${FLUENTBIT_PUBLISHED_HTTP_INPUT_PORT:-24280}
         protocol: tcp
         mode: host
       # Forward input configured with TLS certificates
       - target: 24224
-        published: 24224
+        published: ${FLUENTBIT_PUBLISHED_TLS_FORWARD_INPUT_PORT:-24224}
         protocol: tcp
         mode: host
       - target: 24224
-        published: 24224
+        published: ${FLUENTBIT_PUBLISHED_TLS_FORWARD_INPUT_PORT:-24224}
         protocol: udp
         mode: host
       # Forward input configured PT only (for local docker logs, etc.)
       - target: 24228
-        published: 24228
+        published: ${FLUENTBIT_PUBLISHED_PT_FORWARD_INPUT_PORT:-24228}
         protocol: tcp
         mode: host
       - target: 24228
-        published: 24228
+        published: ${FLUENTBIT_PUBLISHED_PT_FORWARD_INPUT_PORT:-24228}
         protocol: udp
         mode: host
 
