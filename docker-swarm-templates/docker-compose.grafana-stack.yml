@@ -418,7 +418,7 @@ services:
   # Grafana is the open source analytics & monitoring solution for every database.
   #
   grafana:
-    image: grafana/grafana:11.3.0 #>convert_sha256
+    image: grafana/grafana:11.6.1 #>convert_sha256
     deploy:
       mode: replicated
       replicas: 1
