@@ -5,7 +5,7 @@
 # File Created: Friday, 18th October 2024 5:05:51 pm
 # Author: Josh5 (jsunnex@gmail.com)
 # -----
-# Last Modified: Sunday, 22nd June 2025 6:06:00 pm
+# Last Modified: Sunday, 22nd June 2025 7:44:23 pm
 # Modified By: Josh.5 (jsunnex@gmail.com)
 ###
 set -eu
@@ -214,7 +214,6 @@ pipeline:
     - name: forward
       listen: 0.0.0.0
       port: ${PT_FORWARD_INPUT_PORT:?}
-      shared_key: ${PT_FORWARD_INPUT_SHARED_KEY:-}
       self_hostname: ${HOST_HOSTNAME:?}
       storage.type: filesystem
       buffer_chunk_size: 5M

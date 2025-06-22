@@ -170,9 +170,6 @@
 #   #-  - FLUENTBIT_PT_FORWARD_INPUT_PORT -
 #   #-    Port to publish to the host for the Fluent-Bit PT Forward Input. Defaults to 24228 if left blank.
 #   FLUENTBIT_PT_FORWARD_INPUT_PORT=24228
-#   #-  - FLUENTBIT_PT_FORWARD_INPUT_SHARED_KEY -
-#   #-    The shared key of the PT Forward input
-#   FLUENTBIT_PT_FORWARD_INPUT_SHARED_KEY=123456789
 #   #-  - ENABLE_FLUENTBIT_GRAFANA_LOKI_OUTPUT -
 #   #-    Enable Fluent-Bit Loki output
 #   ENABLE_FLUENTBIT_GRAFANA_LOKI_OUTPUT=true
@@ -1175,7 +1172,6 @@ services:
       # |--> Forward PT Input
       ENABLE_PT_FORWARD_INPUT: ${ENABLE_FLUENTBIT_PT_FORWARD_INPUT:-false}
       PT_FORWARD_INPUT_PORT: ${FLUENTBIT_PT_FORWARD_INPUT_PORT:-24228}
-      PT_FORWARD_INPUT_SHARED_KEY: ${FLUENTBIT_PT_FORWARD_INPUT_SHARED_KEY:-}
       # -> Outputs
       # |--> STDOUT Output
       ENABLE_STDOUT_OUTPUT: ${ENABLE_FLUENTBIT_STDOUT_OUTPUT:-false}
