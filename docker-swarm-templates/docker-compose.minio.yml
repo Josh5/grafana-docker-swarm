@@ -66,7 +66,7 @@ services:
   # cloud native workloads like AI.
   #
   minio:
-    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     user: ${PUID:-1000}:${PGID:-1000}
     deploy:
       replicas: 1
