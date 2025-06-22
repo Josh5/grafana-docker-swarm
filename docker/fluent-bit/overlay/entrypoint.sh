@@ -5,7 +5,7 @@
 # File Created: Friday, 18th October 2024 5:05:51 pm
 # Author: Josh5 (jsunnex@gmail.com)
 # -----
-# Last Modified: Sunday, 22nd June 2025 6:01:28 pm
+# Last Modified: Sunday, 22nd June 2025 6:06:00 pm
 # Modified By: Josh.5 (jsunnex@gmail.com)
 ###
 set -eu
@@ -150,7 +150,7 @@ if [ -z "${FLUENT_BIT_TAG_PREFIX:-}" ]; then
 fi
 
 # Fluent HTTP Input
-if [[ ! "${ENABLE_HTTP_INPUT,,}" =~ ^(t|true)$ ]]; then
+if [[ "${ENABLE_HTTP_INPUT,,}" =~ ^(t|true)$ ]]; then
     print_log "info" "Adding HTTP input"
     yaml_file="fluent-bit.http.input.yaml"
     cat <<EOF >/etc/fluent-bit-custom/${yaml_file:?}
@@ -174,7 +174,7 @@ else
 fi
 
 # Fluent Forward TLS Input
-if [[ ! "${ENABLE_TLS_FORWARD_INPUT,,}" =~ ^(t|true)$ ]]; then
+if [[ "${ENABLE_TLS_FORWARD_INPUT,,}" =~ ^(t|true)$ ]]; then
     print_log "info" "Adding TLS Forward input"
     yaml_file="fluent-bit.tls-forward.input.yaml"
     cat <<EOF >/etc/fluent-bit-custom/${yaml_file:?}
@@ -204,7 +204,7 @@ else
 fi
 
 # Fluent Forward PT Input
-if [[ ! "${ENABLE_PT_FORWARD_INPUT,,}" =~ ^(t|true)$ ]]; then
+if [[ "${ENABLE_PT_FORWARD_INPUT,,}" =~ ^(t|true)$ ]]; then
     print_log "info" "Adding PT Forward input"
     yaml_file="fluent-bit.pt-forward.input.yaml"
     cat <<EOF >/etc/fluent-bit-custom/${yaml_file:?}
@@ -232,7 +232,7 @@ else
 fi
 
 # STDOUT output for debugging all log traffic
-if [[ ! "${ENABLE_STDOUT_OUTPUT,,}" =~ ^(t|true)$ ]]; then
+if [[ "${ENABLE_STDOUT_OUTPUT,,}" =~ ^(t|true)$ ]]; then
     print_log "info" "Adding STDOUT output for all logs"
     yaml_file="fluent-bit.debug.output.yaml"
     cat <<EOF >/etc/fluent-bit-custom/${yaml_file:?}
@@ -250,7 +250,7 @@ else
 fi
 
 # Grafana Loki output
-if [[ ! "${ENABLE_GRAFANA_LOKI_OUTPUT,,}" =~ ^(t|true)$ ]]; then
+if [[ "${ENABLE_GRAFANA_LOKI_OUTPUT,,}" =~ ^(t|true)$ ]]; then
     print_log "info" "Adding Grafana Loki output"
     yaml_file="fluent-bit.grafana-loki.output.yaml"
     cat <<EOF >>/etc/fluent-bit-custom/${yaml_file:?}
@@ -287,7 +287,7 @@ else
 fi
 
 # Upstream Fluentd or Fluent-bit TLS encrypted Forward output
-if [[ ! "${ENABLE_TLS_FORWARD_OUTPUT,,}" =~ ^(t|true)$ ]]; then
+if [[ "${ENABLE_TLS_FORWARD_OUTPUT,,}" =~ ^(t|true)$ ]]; then
     print_log "info" "Adding TLS Forward output"
     yaml_file="fluent-bit.tls-forward.output.yaml"
     cat <<EOF >/etc/fluent-bit-custom/${yaml_file:?}
@@ -311,7 +311,7 @@ else
 fi
 
 # Upstream Fluentd or Fluent-bit unencrypted Forward output
-if [[ ! "${ENABLE_PT_FORWARD_OUTPUT,,}" =~ ^(t|true)$ ]]; then
+if [[ "${ENABLE_PT_FORWARD_OUTPUT,,}" =~ ^(t|true)$ ]]; then
     print_log "info" "Adding PT Forward output"
     yaml_file="fluent-bit.pt-forward.output.yaml"
     cat <<EOF >/etc/fluent-bit-custom/${yaml_file:?}
