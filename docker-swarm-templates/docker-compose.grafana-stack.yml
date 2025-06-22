@@ -118,24 +118,61 @@
 #   #-      #   yesterday, 2 till day before yesterday and so on. This can be used to lower
 #   #-      #   cost by not trying to build blooms for older data which doesn't change.
 #   LOKI_REJECT_OLD_SAMPLES_MAX_AGE=24h
+#   #@ Fluent-Bit Config
+#   #-  - FLUENTBIT_PUBLISHED_HTTP_SERVER_PORT -
+#   #-    Specify a custom port to publish to the host for the Fluent-Bit HTTP server. Defaults to 2020 if left blank.
+#   FLUENTBIT_PUBLISHED_HTTP_SERVER_PORT=2020
+#   #-  - FLUENT_BIT_LOG_LEVEL -
+#   #-    Set the Fluent-Bit process log level
+#   FLUENT_BIT_LOG_LEVEL=info
 #   #-  - FLUENT_BIT_TAG_PREFIX -
 #   #-    A tag to filter out records. Only records with a tag prefix matching this will be processed.
 #   FLUENT_BIT_TAG_PREFIX=flb_glf.
-#   #-  - FLUENTBIT_FORWARD_INPUT_SHARED_KEY -
+#   #-  - ENABLE_HTTP_INPUT -
+#   #-    Enable Fluent Bit HTTP input listener for log ingestion
+#   ENABLE_FLUENTBIT_HTTP_INPUT=false
+#   #-  - HTTP_INPUT_PORT -
+#   #-    Port that the HTTP input listener will bind to inside the container
+#   FLUENTBIT_HTTP_INPUT_PORT=24280
+#   #-  - ENABLE_FLUENTBIT_TLS_FORWARD_INPUT -
+#   #-    Enable TLS Forward input. This will either use provided certificates or generate some self-signed certs on startup.
+#   ENABLE_FLUENTBIT_TLS_FORWARD_INPUT=false
+#   #-  - FLUENTBIT_TLS_FORWARD_INPUT_PORT -
+#   #-    Specify a custom port to publish to the host for the Fluent-Bit TLS Forward Input. Defaults to 24224 if left blank.
+#   FLUENTBIT_TLS_FORWARD_INPUT_PORT=24224
+#   #-  - FLUENTBIT_TLS_FORWARD_INPUT_SHARED_KEY -
 #   #-    The shared key of the TLS Forward input
-#   FLUENTBIT_FORWARD_INPUT_SHARED_KEY=123456789
-#   #-  - FLUENTBIT_ENABLE_TLS_ON_FORWARD_INPUT -
-#   #-    Enable TLS for forward input. This will either use provided certificates or generate some self-signed certs on startup.
-#   FLUENTBIT_ENABLE_TLS_ON_FORWARD_INPUT=true
+#   FLUENTBIT_TLS_FORWARD_INPUT_SHARED_KEY=123456789
+#   #-  - FLUENTBIT_TLS_FORWARD_INPUT_VERIFY -
+#   #-    The shared key of the TLS Forward input
+#   FLUENTBIT_TLS_FORWARD_INPUT_VERIFY=off
 #   #-  - FLUENTBIT_USE_EXISTING_CERT -
 #   #-    Use existing certificates provided in the FLUENTBIT_EXISTING_CERT_PATH and FLUENTBIT_EXISTING_KEY_PATH variables
-#   FLUENTBIT_USE_EXISTING_CERT=true
+#   FLUENTBIT_USE_EXISTING_CERT=false
 #   #-  - FLUENTBIT_EXISTING_CERT_PATH -
 #   #-    Path to an existing cert as it will appear inside the running container.
 #   FLUENTBIT_EXISTING_CERT_PATH=/etc/fluent-bit/certs/1.pem
 #   #-  - FLUENTBIT_EXISTING_KEY_PATH -
 #   #-    Path to an existing key as it will appear inside the running container.
 #   FLUENTBIT_EXISTING_KEY_PATH=/etc/fluent-bit/certs/1.key
+#   #-  - USE_CERTBOT_TO_GENERATE_KEY -
+#   #-    If true, generate a certificate via Certbot during startup
+#   USE_CERTBOT_TO_GENERATE_KEY=false
+#   #-  - CERT_FQDN -
+#   #-    Fully qualified domain name used for certificate generation
+#   CERT_FQDN=
+#   #-  - CERT_EMAIL -
+#   #-    Email address passed to Certbot when generating certificates
+#   CERT_EMAIL=
+#   #-  - ENABLE_FLUENTBIT_PT_FORWARD_INPUT -
+#   #-    Enable Fluent Bit plaintext Forward input listener
+#   ENABLE_FLUENTBIT_PT_FORWARD_INPUT=false
+#   #-  - FLUENTBIT_PT_FORWARD_INPUT_PORT -
+#   #-    Port to publish to the host for the Fluent-Bit PT Forward Input. Defaults to 24228 if left blank.
+#   FLUENTBIT_PT_FORWARD_INPUT_PORT=24228
+#   #-  - FLUENTBIT_PT_FORWARD_INPUT_SHARED_KEY -
+#   #-    The shared key of the PT Forward input
+#   FLUENTBIT_PT_FORWARD_INPUT_SHARED_KEY=123456789
 #   #-  - ENABLE_FLUENTBIT_GRAFANA_LOKI_OUTPUT -
 #   #-    Enable Fluent-Bit Loki output
 #   ENABLE_FLUENTBIT_GRAFANA_LOKI_OUTPUT=true
@@ -163,18 +200,6 @@
 #   #-  - FLUENTBIT_PT_FORWARD_OUTPUT_PORT -
 #   #-    The connection port of the Fluent-Bit plain-text Forward output.
 #   FLUENTBIT_PT_FORWARD_OUTPUT_PORT=
-#   #-  - FLUENTBIT_PUBLISHED_HTTP_SERVER_PORT -
-#   #-    Specify a custom port to publish to the host for the Fluent-Bit HTTP server. Defaults to 2020 if left blank.
-#   FLUENTBIT_PUBLISHED_HTTP_SERVER_PORT=2020
-#   #-  - FLUENTBIT_PUBLISHED_HTTP_INPUT_PORT -
-#   #-    Specify a custom port to publish to the host for the Fluent-Bit HTTP Input. Defaults to 24280 if left blank.
-#   FLUENTBIT_PUBLISHED_HTTP_INPUT_PORT=24280
-#   #-  - FLUENTBIT_PUBLISHED_TLS_FORWARD_INPUT_PORT -
-#   #-    Specify a custom port to publish to the host for the Fluent-Bit TLS Forward Input. Defaults to 24224 if left blank.
-#   FLUENTBIT_PUBLISHED_TLS_FORWARD_INPUT_PORT=24224
-#   #-  - FLUENTBIT_PUBLISHED_PT_FORWARD_INPUT_PORT -
-#   #-    Specify a custom port to publish to the host for the Fluent-Bit PT Forward Input. Defaults to 24228 if left blank.
-#   FLUENTBIT_PUBLISHED_PT_FORWARD_INPUT_PORT=24228
 # <config_end>
 #
 # ---------------
@@ -1099,26 +1124,26 @@ services:
         protocol: tcp
         mode: host
       # Fluent Bit log ingest ports
-      - target: 24280
-        published: ${FLUENTBIT_PUBLISHED_HTTP_INPUT_PORT:-24280}
+      - target: ${FLUENTBIT_HTTP_INPUT_PORT:-24280}
+        published: ${FLUENTBIT_HTTP_INPUT_PORT:-24280}
         protocol: tcp
         mode: host
       # Forward input configured with TLS certificates
-      - target: 24224
-        published: ${FLUENTBIT_PUBLISHED_TLS_FORWARD_INPUT_PORT:-24224}
+      - target: ${FLUENTBIT_TLS_FORWARD_INPUT_PORT:-24224}
+        published: ${FLUENTBIT_TLS_FORWARD_INPUT_PORT:-24224}
         protocol: tcp
         mode: host
-      - target: 24224
-        published: ${FLUENTBIT_PUBLISHED_TLS_FORWARD_INPUT_PORT:-24224}
+      - target: ${FLUENTBIT_TLS_FORWARD_INPUT_PORT:-24224}
+        published: ${FLUENTBIT_TLS_FORWARD_INPUT_PORT:-24224}
         protocol: udp
         mode: host
       # Forward input configured PT only (for local docker logs, etc.)
-      - target: 24228
-        published: ${FLUENTBIT_PUBLISHED_PT_FORWARD_INPUT_PORT:-24228}
+      - target: ${FLUENTBIT_PT_FORWARD_INPUT_PORT:-24228}
+        published: ${FLUENTBIT_PT_FORWARD_INPUT_PORT:-24228}
         protocol: tcp
         mode: host
-      - target: 24228
-        published: ${FLUENTBIT_PUBLISHED_PT_FORWARD_INPUT_PORT:-24228}
+      - target: ${FLUENTBIT_PT_FORWARD_INPUT_PORT:-24228}
+        published: ${FLUENTBIT_PT_FORWARD_INPUT_PORT:-24228}
         protocol: udp
         mode: host
 
@@ -1127,27 +1152,45 @@ services:
       <<: *environment_defaults
       # Application:
       # -- Config
+      FLUENT_BIT_LOG_LEVEL: ${FLUENT_BIT_LOG_LEVEL:-info}
+      HOST_HOSTNAME: ${HOST_HOSTNAME:-grafana-fluent-bit}
       FLUENT_BIT_TAG_PREFIX: ${FLUENT_BIT_TAG_PREFIX:-flb_glf.}
       FLUENT_STORAGE_PATH: /fluent-bit-data/storage
-      FORWARD_INPUT_SHARED_KEY: ${FLUENTBIT_FORWARD_INPUT_SHARED_KEY:-}
-      ENABLE_TLS_ON_FORWARD_INPUT: ${FLUENTBIT_ENABLE_TLS_ON_FORWARD_INPUT:-true}
-      USE_EXISTING_CERT: ${FLUENTBIT_USE_EXISTING_CERT:-false}
+      # -> Inputs
+      # |--> HTTP Input
+      ENABLE_HTTP_INPUT: ${ENABLE_FLUENTBIT_HTTP_INPUT:-false}
+      HTTP_INPUT_PORT: ${FLUENTBIT_HTTP_INPUT_PORT:-24280}
+      # |--> Forward TLS Input
+      ENABLE_TLS_FORWARD_INPUT: ${ENABLE_FLUENTBIT_TLS_FORWARD_INPUT:-false}
+      TLS_FORWARD_INPUT_PORT: ${FLUENTBIT_TLS_FORWARD_INPUT_PORT:-24224}
+      TLS_FORWARD_INPUT_SHARED_KEY: ${FLUENTBIT_TLS_FORWARD_INPUT_SHARED_KEY:-}
+      TLS_FORWARD_INPUT_VERIFY: ${FLUENTBIT_TLS_FORWARD_INPUT_VERIFY:-off}
       CERTIFICATES_DIRECTORY: /fluent-bit-data/certs
+      USE_EXISTING_CERT: ${FLUENTBIT_USE_EXISTING_CERT:-false}
       EXISTING_CERT_PATH: ${FLUENTBIT_EXISTING_CERT_PATH:-}
       EXISTING_KEY_PATH: ${FLUENTBIT_EXISTING_KEY_PATH:-}
       USE_CERTBOT_TO_GENERATE_KEY: ${USE_CERTBOT_TO_GENERATE_KEY:-false}
       CERT_FQDN: ${CERT_FQDN:-}
       CERT_EMAIL: ${CERT_EMAIL:-}
-      ENABLE_STDOUT_OUTPUT: ${ENABLE_FLUENTBIT_STDOUT_OUTPUT:-false}
-      ENABLE_GRAFANA_LOKI_OUTPUT: ${ENABLE_FLUENTBIT_GRAFANA_LOKI_OUTPUT:-false}
+      # |--> Forward PT Input
+      ENABLE_PT_FORWARD_INPUT: ${ENABLE_FLUENTBIT_PT_FORWARD_INPUT:-false}
+      PT_FORWARD_INPUT_PORT: ${FLUENTBIT_PT_FORWARD_INPUT_PORT:-24228}
+      PT_FORWARD_INPUT_SHARED_KEY: ${FLUENTBIT_PT_FORWARD_INPUT_SHARED_KEY:-}
+      # -> Outputs
+      # |--> STDOUT Output
+      ENABLE_STDOUT_OUTPUT: ${ENABLE_FLUENTBIT_STDOUT_OUTPUT:-true}
+      # |--> Grafana Loki Output
+      ENABLE_GRAFANA_LOKI_OUTPUT: ${ENABLE_FLUENTBIT_GRAFANA_LOKI_OUTPUT:-true}
       GRAFANA_LOKI_HOST: loki-gateway
       GRAFANA_LOKI_PORT: 3100
       GRAFANA_LOKI_URI: ${TRAEFIK_PATH_PREFIX_LOKI:-}/loki/api/v1/push
+      # |--> Forward TLS Output
       ENABLE_TLS_FORWARD_OUTPUT: ${ENABLE_FLUENTBIT_TLS_FORWARD_OUTPUT:-false}
       TLS_FORWARD_OUTPUT_HOST: ${FLUENTBIT_TLS_FORWARD_OUTPUT_HOST:-}
       TLS_FORWARD_OUTPUT_PORT: ${FLUENTBIT_TLS_FORWARD_OUTPUT_PORT:-}
       TLS_FORWARD_OUTPUT_SHARED_KEY: ${FLUENTBIT_TLS_FORWARD_OUTPUT_SHARED_KEY:-}
       TLS_FORWARD_OUTPUT_VERIFY: ${FLUENTBIT_TLS_FORWARD_OUTPUT_VERIFY:-off}
+      # |--> Forward PT Output
       ENABLE_PT_FORWARD_OUTPUT: ${ENABLE_FLUENTBIT_PT_FORWARD_OUTPUT:-false}
       PT_FORWARD_OUTPUT_HOST: ${FLUENTBIT_PT_FORWARD_OUTPUT_HOST:-}
       PT_FORWARD_OUTPUT_PORT: ${FLUENTBIT_PT_FORWARD_OUTPUT_PORT:-}

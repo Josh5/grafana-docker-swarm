@@ -1,0 +1,11 @@
+###
+# File: fluent-bit.http.input.yaml
+# Project: fluent-bit
+# File Created: Monday, 23rd June 2025 1:13:24 am
+# Author: Josh.5 (jsunnex@gmail.com)
+# -----
+# Last Modified: Monday, 23rd June 2025 1:13:32 am
+# Modified By: Josh.5 (jsunnex@gmail.com)
+###
+
+# -- Custom config for http input added here --

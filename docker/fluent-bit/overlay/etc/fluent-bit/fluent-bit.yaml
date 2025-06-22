@@ -63,52 +63,31 @@ service:
   scheduler.base: 5
 
 pipeline:
-  inputs:
-    # HTTP input to sit behind an LB
-    - name: http
-      listen: 0.0.0.0
-      port: 24280
-      storage.type: filesystem
-      buffer_chunk_size: 5M
-      buffer_max_size: 1000M
-      threaded: true
-
-    # Forward input configured PT only (for local docker logs)
-    - name: forward
-      listen: 0.0.0.0
-      port: 24228
-      self_hostname: ${HOST_HOSTNAME}
-      storage.type: filesystem
-      buffer_chunk_size: 5M
-      buffer_max_size: 1000M
-      tls: off
-      tls.verify: off
-      threaded: true
-
-    # Forward input configured with TLS certificates
-    - name: forward
-      listen: 0.0.0.0
-      port: 24224
-      shared_key: ${FORWARD_INPUT_SHARED_KEY}
-      self_hostname: ${HOST_HOSTNAME}
-      storage.type: filesystem
-      buffer_chunk_size: 5M
-      buffer_max_size: 1000M
-      tls: ${ENABLE_TLS_ON_FORWARD_INPUT}
-      tls.verify: off
-      tls.key_file: ${CERTIFICATES_DIRECTORY}/fluent-bit.pem
-      tls.crt_file: ${CERTIFICATES_DIRECTORY}/fluent-bit.pem
-      threaded: true
-
   filters:
-    # Ensure required fields are extracted for Grafana Loki
+    # Ensure any JSON logs are evaluated and flattened
     - name: lua
       match: ${FLUENT_BIT_TAG_PREFIX}*
-      script: apply-loki-formatting.lua
-      call: grafana_loki_formatting
+      script: flatten-json.lua
+      call: flatten_json
+
+    # Ensure all logs are formatted correctly for graylog
+    - name: lua
+      match: ${FLUENT_BIT_TAG_PREFIX}*
+      script: apply-standard-record-formatting.lua
+      call: standard_record_formatting
 
 includes:
+  # Debugging STDOUT Output (enabled by default)
   - fluent-bit.debug.output.yaml
+  # HTTP Input
+  #- fluent-bit.http.input.yaml
+  # TLS Forward Input
+  #- fluent-bit.tls-forward.input.yaml
+  # PT Forward Input
+  #- fluent-bit.pt-forward.input.yaml
+  # Loki Output
   #- fluent-bit.grafana-loki.output.yaml
+  # TLS Forward Output
   #- fluent-bit.tls-forward.output.yaml
+  # PT Forward Output
   #- fluent-bit.pt-forward.output.yaml
