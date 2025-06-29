@@ -53,7 +53,7 @@ ENV \
     EXISTING_KEY_PATH=/etc/fluent-bit/certs/1.key \
     EXISTING_CERT_PATH=/etc/fluent-bit/certs/1.pem \
     USE_CERTBOT_TO_GENERATE_KEY=false \
-    CERT_FQDN=example.com \
+    CERT_FQDN=grafana-fluent-bit \
     CERT_EMAIL=admin@example.com \
     ENABLE_PT_FORWARD_INPUT=false \
     PT_FORWARD_INPUT_PORT=24228 \
