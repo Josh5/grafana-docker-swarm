@@ -4,7 +4,7 @@
 --File Created: Tuesday, 29th October 2024 3:18:29 pm
 --Author: Josh5 (jsunnex@gmail.com)
 -------
---Last Modified: Monday, 23rd June 2025 3:20:42 am
+--Last Modified: Friday, 11th July 2025 12:45:23 pm
 --Modified By: Josh.5 (jsunnex@gmail.com)
 --]]
 
@@ -57,12 +57,25 @@ function standard_record_formatting(tag, timestamp, record)
     for key, value in pairs(record) do
         new_record[key] = value
 
-        -- Convert any "source." keys to "source_". Graylog will do this already, but lets do it here so anything
-        --  sent to another index not managed by Graylog will be uniform.
+        -- Convert any "source." keys to "source_",
+        -- and also preserve the original in "source_<…>_extracted"
+        -- so everything across all indexers (Loki, Graylog, etc) is uniform.
         if key:sub(1, 7) == "source." then
-            local new_key = "source_" .. key:sub(8)
-            new_record[new_key] = value
-            new_record[key] = nil -- Remove the original "source." key
+            local suffix = key:sub(8)
+            local normalized = "source_" .. suffix
+            local extracted = normalized .. "_extracted"
+
+            -- Only override normalized if not present or explicitly empty.
+            -- Otherwise, set the value on the "_extracted" label.
+            local existing = new_record[normalized]
+            if existing == nil or existing == "" then
+                new_record[normalized] = value
+            else
+                new_record[extracted] = value
+            end
+
+            -- Remove the original dotted key
+            new_record[key] = nil
         end
 
         -- Check if message key is not lowercase
