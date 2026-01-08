@@ -470,7 +470,7 @@ services:
         - "homepage.group=Observability"
         - "homepage.name=Grafana"
         - "homepage.weight=1"
-        - "homepage.icon=https://static-00.iconduck.com/assets.00/grafana-icon-512x512-0v0st1xm.png"
+        - "homepage.icon=https://avatars.githubusercontent.com/u/7195757?v=4"
         - "homepage.description=Grafana is the open source analytics & monitoring solution for every database."
         - "homepage.href=http://${TRAEFIK_DOMAIN:?}${TRAEFIK_PATH_PREFIX_GRAFANA:?}"
     entrypoint:
