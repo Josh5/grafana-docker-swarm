@@ -1,0 +1,301 @@
+# ---------------
+# Prometheus Node Exporter Agent
+#   Scrapes node-exporter and forwards metrics to an upstream edge relay.
+#
+# ---------------
+# Config (paste into portainer advance env text input):
+#
+# <config_start>
+#   #@ Placement
+#   #-    Configure a placement constraint to where the container will be run.
+#   #-    Examples:
+#   #-        - node.hostname==<hostname>
+#   #-        - engine.labels.fs-access.<worker-hostname>.mnt==true
+#   #-        - node.role!=manager
+#   PROM_AGENT_PLACEMENT_CONSTRAINT=engine.labels.node-type==swarm-monitor
+#   NODE_EXPORTER_PLACEMENT_CONSTRAINT=node.platform.os==linux
+#   #@ Host Config
+#   #-  - TZ -
+#   #-    The timezone.
+#   TZ=Etc/UTC
+#   #@ Storage
+#   #-  - PROM_AGENT_DATA_VOLUME -
+#   #-    Named volume used for the Prometheus data directory
+#   PROM_AGENT_DATA_VOLUME=prometheus-node-agent-data
+#   #@ Prometheus Config
+#   #-  - PROM_AGENT_RETENTION_TIME -
+#   #-    Local retention window (kept short to limit disk usage)
+#   PROM_AGENT_RETENTION_TIME=6h
+#   #-  - PROM_AGENT_SCRAPE_INTERVAL -
+#   #-    Scrape interval for node-exporter
+#   PROM_AGENT_SCRAPE_INTERVAL=15s
+#   #-  - PROM_AGENT_EVAL_INTERVAL -
+#   #-    Evaluation interval for rules
+#   PROM_AGENT_EVAL_INTERVAL=15s
+#   #-  - PROM_AGENT_EXTERNAL_LABELS -
+#   #-    External labels block (indented 4 spaces), e.g.:
+#   #-      edge: "vps-1"
+#   PROM_AGENT_EXTERNAL_LABELS=
+#   #-  - PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS -
+#   #-    Additional scrape_configs entries (indented 2 spaces)
+#   PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS=
+#   #@ Remote Write (Edge Relay)
+#   #-  - EDGE_REMOTE_WRITE_URL -
+#   #-    Edge relay remote_write URL, e.g.:
+#   #-      https://edge.example.com/api/v1/write
+#   EDGE_REMOTE_WRITE_URL=
+#   #-  - EDGE_REMOTE_WRITE_ENABLE_HTTP2 -
+#   #-    Enable HTTP/2 for remote_write
+#   EDGE_REMOTE_WRITE_ENABLE_HTTP2=true
+#   #-  - EDGE_REMOTE_WRITE_BASIC_AUTH_USER -
+#   #-    Optional username for edge relay basic auth
+#   EDGE_REMOTE_WRITE_BASIC_AUTH_USER=
+#   #-  - EDGE_REMOTE_WRITE_BASIC_AUTH_PASS -
+#   #-    Optional password for edge relay basic auth
+#   EDGE_REMOTE_WRITE_BASIC_AUTH_PASS=
+#   #-  - EDGE_REMOTE_WRITE_EXTRA_CONFIG -
+#   #-    Extra remote_write config (indented 4 spaces), e.g.:
+#   #-      queue_config:
+#   #-        max_samples_per_send: 10000
+#   EDGE_REMOTE_WRITE_EXTRA_CONFIG=
+# <config_end>
+#
+---
+networks:
+  metrics-net:
+    driver: overlay
+    attachable: true
+volumes:
+  prometheus-node-agent-data:
+    name: ${PROM_AGENT_DATA_VOLUME:-prometheus-node-agent-data}
+
+services:
+  prometheus-node-agent:
+    image: prom/prometheus:v3.0.1
+    user: '65534:65534'
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+      placement:
+        constraints:
+          - ${PROM_AGENT_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ['CMD', 'pidof', 'prometheus']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+
+        if [ -z "$${EDGE_REMOTE_WRITE_URL:-}" ]; then
+          echo "EDGE_REMOTE_WRITE_URL is required"
+          exit 1
+        fi
+
+        cat > /etc/prometheus/prometheus.yml <<EOF
+        global:
+          scrape_interval: $${PROM_AGENT_SCRAPE_INTERVAL:-15s}
+          evaluation_interval: $${PROM_AGENT_EVAL_INTERVAL:-15s}
+        EOF
+
+        if [ -n "$${PROM_AGENT_EXTERNAL_LABELS:-}" ]; then
+          echo "  external_labels:" >> /etc/prometheus/prometheus.yml
+          printf "%s\n" "$${PROM_AGENT_EXTERNAL_LABELS}" >> /etc/prometheus/prometheus.yml
+        else
+          echo "  external_labels:" >> /etc/prometheus/prometheus.yml
+          echo "    node_id: \"$${NODE_ID}\"" >> /etc/prometheus/prometheus.yml
+          echo "    node_name: \"$${NODE_NAME}\"" >> /etc/prometheus/prometheus.yml
+        fi
+
+        cat >> /etc/prometheus/prometheus.yml <<EOF
+        scrape_configs:
+          - job_name: node-exporter
+            static_configs:
+              - targets: ["node-exporter:9100"]
+            relabel_configs:
+              - target_label: instance
+                replacement: "$${NODE_NAME}"
+          - job_name: cadvisor
+            static_configs:
+              - targets: ["cadvisor:8080"]
+            relabel_configs:
+              - target_label: instance
+                replacement: "$${NODE_NAME}"
+          - job_name: prometheus
+            static_configs:
+              - targets: ["localhost:9090"]
+        EOF
+
+        if [ -n "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}" ]; then
+          printf "%s\n" "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS}" >> /etc/prometheus/prometheus.yml
+        fi
+
+        echo "remote_write:" >> /etc/prometheus/prometheus.yml
+        echo "  - url: $${EDGE_REMOTE_WRITE_URL}" >> /etc/prometheus/prometheus.yml
+        if [ "$${EDGE_REMOTE_WRITE_ENABLE_HTTP2:-true}" = "true" ]; then
+          echo "    enable_http2: true" >> /etc/prometheus/prometheus.yml
+        fi
+        if [ -n "$${EDGE_REMOTE_WRITE_BASIC_AUTH_USER:-}" ] && [ -n "$${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS:-}" ]; then
+          cat >> /etc/prometheus/prometheus.yml <<EOF
+            basic_auth:
+              username: $${EDGE_REMOTE_WRITE_BASIC_AUTH_USER}
+              password: $${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS}
+        EOF
+        fi
+        if [ -n "$${EDGE_REMOTE_WRITE_EXTRA_CONFIG:-}" ]; then
+          printf "%s\n" "$${EDGE_REMOTE_WRITE_EXTRA_CONFIG}" >> /etc/prometheus/prometheus.yml
+        fi
+
+        exec /bin/prometheus \
+          --config.file=/etc/prometheus/prometheus.yml \
+          --log.level=info \
+          --storage.tsdb.path=/prometheus \
+          --storage.tsdb.retention.time=$${PROM_AGENT_RETENTION_TIME:-6h}
+
+    # NETWORK:
+    networks:
+      - metrics-net
+    # ENVIRONMENT:
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      NODE_ID: "{{.Node.ID}}"
+      NODE_NAME: "{{.Node.Hostname}}"
+      PROM_AGENT_SCRAPE_INTERVAL: ${PROM_AGENT_SCRAPE_INTERVAL:-15s}
+      PROM_AGENT_EVAL_INTERVAL: ${PROM_AGENT_EVAL_INTERVAL:-15s}
+      PROM_AGENT_EXTERNAL_LABELS: ${PROM_AGENT_EXTERNAL_LABELS:-}
+      PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS: ${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}
+      EDGE_REMOTE_WRITE_URL: ${EDGE_REMOTE_WRITE_URL:?}
+      EDGE_REMOTE_WRITE_ENABLE_HTTP2: ${EDGE_REMOTE_WRITE_ENABLE_HTTP2:-true}
+      EDGE_REMOTE_WRITE_BASIC_AUTH_USER: ${EDGE_REMOTE_WRITE_BASIC_AUTH_USER:-}
+      EDGE_REMOTE_WRITE_BASIC_AUTH_PASS: ${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS:-}
+      EDGE_REMOTE_WRITE_EXTRA_CONFIG: ${EDGE_REMOTE_WRITE_EXTRA_CONFIG:-}
+
+    # VOLUMES:
+    volumes:
+      - type: volume
+        source: prometheus-node-agent-data
+        target: /prometheus
+
+  # -- Node exporter --
+  #
+  # Prometheus exporter for hardware and OS metrics exposed by *NIX kernels.
+  #
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+      placement:
+        constraints:
+          - ${NODE_EXPORTER_PLACEMENT_CONSTRAINT:-node.platform.os==linux}
+    entrypoint:
+      - '/bin/sh'
+      - '-c'
+      - |
+        set -e
+
+        echo "Setting configuration..."
+        NODE_NAME=$$(cat /etc/nodename)
+        NODE_ID=$${NODE_ID:-$${NODE_NAME}}
+        mkdir -p /tmp/node-exporter
+        echo "node_meta{node_id=\"$$NODE_ID\", node_name=\"$$NODE_NAME\", instance=\"$$NODE_NAME\"} 1" > /tmp/node-exporter/node-meta.prom
+        echo
+
+        echo "### Running node-exporter ###"
+        echo "/bin/node_exporter $${@}"
+        exec /bin/node_exporter $${@}
+    command:
+      - ''
+      - '--no-collector.ipvs'
+      - '--path.rootfs=/rootfs'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.textfile.directory=/tmp/node-exporter/'
+      - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+|run/credentials/.+)($$|/)'
+
+    # NETWORK:
+    networks:
+      - metrics-net
+
+    # ENVIRONMENT:
+    environment:
+      - NODE_ID={{.Node.ID}}
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+      - type: bind
+        source: /proc
+        target: /host/proc
+        read_only: true
+      - type: bind
+        source: /sys
+        target: /host/sys
+        read_only: true
+      - type: bind
+        source: /etc/hostname
+        target: /etc/nodename
+        read_only: true
+
+  # -- cAdvisor (Container Advisor)  --
+  #
+  # Provides container users an understanding of the resource usage and performance characteristics of their
+  # running containers.
+  #
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    command: -logtostderr -docker_only
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 64M
+      placement:
+        constraints:
+          - node.platform.os == linux
+
+    # NETWORK:
+    networks:
+      - metrics-net
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+      - type: bind
+        source: /var/run
+        target: /var/run
+        read_only: true
+      - type: bind
+        source: /sys
+        target: /sys
+        read_only: true
+      - type: bind
+        source: /var/lib/docker
+        target: /var/lib/docker
+        read_only: true
+      - type: bind
+        source: /dev/disk
+        target: /dev/disk
+        read_only: true

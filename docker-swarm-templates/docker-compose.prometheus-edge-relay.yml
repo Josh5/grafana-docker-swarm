@@ -1,0 +1,226 @@
+# ---------------
+# Prometheus Edge Relay
+#   Receives Prometheus remote_write metrics and forwards them upstream.
+#
+# ---------------
+# Config (paste into portainer advance env text input):
+#
+# <config_start>
+#   #@ Placement
+#   #-    Configure a placement constraint to where the container will be run.
+#   #-    Examples:
+#   #-        - node.hostname==<hostname>
+#   #-        - engine.labels.fs-access.<worker-hostname>.mnt==true
+#   #-        - node.role!=manager
+#   EDGE_PROM_PLACEMENT_CONSTRAINT=engine.labels.node-type==swarm-monitor
+#   #@ Host Config
+#   #-  - TZ -
+#   #-    The timezone.
+#   TZ=Etc/UTC
+#   #@ Container Paths
+#   #-  - EDGE_PROM_DATA_PATH -
+#   #-    The Path to the Prometheus data directory
+#   EDGE_PROM_DATA_PATH=./appdata/prometheus-edge-relay
+#   #@ Prometheus Config
+#   #-  - EDGE_PROM_PUBLISHED_PORT -
+#   #-    The published port for the remote_write receiver
+#   EDGE_PROM_PUBLISHED_PORT=9090
+#   #-  - EDGE_PROM_RETENTION_TIME -
+#   #-    Local retention window (kept short to limit disk usage)
+#   EDGE_PROM_RETENTION_TIME=6h
+#   #-  - EDGE_PROM_SCRAPE_INTERVAL -
+#   #-    Scrape interval for built-in self-scrape
+#   EDGE_PROM_SCRAPE_INTERVAL=15s
+#   #-  - EDGE_PROM_EVAL_INTERVAL -
+#   #-    Evaluation interval for rules
+#   EDGE_PROM_EVAL_INTERVAL=15s
+#   #-  - EDGE_PROM_EXTERNAL_LABELS -
+#   #-    External labels block appended under global.external_labels.
+#   #-    Must be indented 4 spaces, e.g.:
+#   #-      edge: "edge-1"
+#   EDGE_PROM_EXTERNAL_LABELS=
+#   #-  - EDGE_PROM_ADDITIONAL_SCRAPE_CONFIGS -
+#   #-    Additional scrape_configs entries appended under scrape_configs.
+#   #-    Must be indented 2 spaces, e.g.:
+#   #-      - job_name: node
+#   #-        static_configs:
+#   #-          - targets: ["node-exporter:9100"]
+#   EDGE_PROM_ADDITIONAL_SCRAPE_CONFIGS=
+#   #-  - EDGE_PROM_ENABLE_SELF_SCRAPE -
+#   #-    Enable scraping the relay's own metrics
+#   EDGE_PROM_ENABLE_SELF_SCRAPE=true
+#   #-  - EDGE_PROM_BASIC_AUTH_USER -
+#   #-    Optional basic auth username for the receiver
+#   EDGE_PROM_BASIC_AUTH_USER=
+#   #-  - EDGE_PROM_BASIC_AUTH_PASS_HASH -
+#   #-    Bcrypt hash for the receiver password (required if user is set).
+#   #-      > import getpass
+#   #-      > import bcrypt
+#   #-      > password = getpass.getpass("password: ")
+#   #-      > hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+#   #-      > print(hashed_password.decode())
+#   EDGE_PROM_BASIC_AUTH_PASS_HASH=
+#   #@ Upstream Config
+#   #-  - UPSTREAM_PROMETHEUS_REMOTE_WRITE_URL -
+#   #-    Upstream Prometheus remote_write URL. Must include scheme and path.
+#   #-    Examples:
+#   #-      http://grafana-stack-prometheus:9090/prom/api/v1/write
+#   #-      http://192.168.1.201:9090/api/v1/write
+#   UPSTREAM_PROMETHEUS_REMOTE_WRITE_URL=
+#   #-  - UPSTREAM_PROMETHEUS_BASIC_AUTH_USER -
+#   #-    Optional username for upstream basic auth (set with PASS).
+#   UPSTREAM_PROMETHEUS_BASIC_AUTH_USER=
+#   #-  - UPSTREAM_PROMETHEUS_BASIC_AUTH_PASS -
+#   #-    Optional password for upstream basic auth (set with USER).
+#   UPSTREAM_PROMETHEUS_BASIC_AUTH_PASS=
+#   #-  - UPSTREAM_PROMETHEUS_REMOTE_WRITE_CONFIG -
+#   #-    Extra remote_write config appended under the same remote_write item.
+#   #-    Must be indented 4 spaces, e.g.:
+#   #-      queue_config:
+#   #-        max_samples_per_send: 10000
+#   #-    You can also include relabeling, e.g.:
+#   #-      write_relabel_configs:
+#   #-        - source_labels: [__name__]
+#   #-          regex: ".*"
+#   UPSTREAM_PROMETHEUS_REMOTE_WRITE_CONFIG=
+# <config_end>
+#
+# ---------------
+# Setup Script
+#
+# <script_start>
+#   > mkdir -p ${EDGE_PROM_DATA_PATH:?}
+#   > sudo chown 65534:65534 ${EDGE_PROM_DATA_PATH:?}
+#   > sudo chmod 755 ${EDGE_PROM_DATA_PATH:?}
+#   > echo && echo "$(cd "${EDGE_PROM_DATA_PATH:?}" && pwd)" && ls -la ${EDGE_PROM_DATA_PATH:?}
+# <script_end>
+#
+# ---------------
+---
+networks:
+  swarm-public:
+    # NOTE: This network needs to be manually created and needs to
+    #       be configured for manual container attachment
+    external: true
+
+services:
+  prometheus-edge-relay:
+    image: prom/prometheus:v3.0.1
+    user: '65534:65534'
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+      placement:
+        constraints:
+          - ${EDGE_PROM_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ['CMD', 'pidof', 'prometheus']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - |
+        set -eu
+
+        if [ -n "$${EDGE_PROM_BASIC_AUTH_USER:-}" ] && [ -n "$${EDGE_PROM_BASIC_AUTH_PASS_HASH:-}" ]; then
+          cat > /etc/prometheus/web.yml <<EOF
+        basic_auth_users:
+          $${EDGE_PROM_BASIC_AUTH_USER}: $${EDGE_PROM_BASIC_AUTH_PASS_HASH}
+        EOF
+        fi
+
+        cat > /etc/prometheus/prometheus.yml <<EOF
+        global:
+          scrape_interval: $${EDGE_PROM_SCRAPE_INTERVAL:-15s}
+          evaluation_interval: $${EDGE_PROM_EVAL_INTERVAL:-15s}
+        EOF
+
+        if [ -n "$${EDGE_PROM_EXTERNAL_LABELS:-}" ]; then
+          echo "  external_labels:" >> /etc/prometheus/prometheus.yml
+          printf "%s\n" "$${EDGE_PROM_EXTERNAL_LABELS}" >> /etc/prometheus/prometheus.yml
+        fi
+
+        SCRAPE_CONFIGS=""
+        if [ "$${EDGE_PROM_ENABLE_SELF_SCRAPE:-true}" = "true" ]; then
+          SCRAPE_CONFIGS="$${SCRAPE_CONFIGS}
+          - job_name: prometheus
+            static_configs:
+              - targets: [\"localhost:9090\"]"
+        fi
+        if [ -n "$${EDGE_PROM_ADDITIONAL_SCRAPE_CONFIGS:-}" ]; then
+          SCRAPE_CONFIGS="$${SCRAPE_CONFIGS}
+          $${EDGE_PROM_ADDITIONAL_SCRAPE_CONFIGS}"
+        fi
+        if [ -n "$${SCRAPE_CONFIGS}" ]; then
+          echo "scrape_configs:" >> /etc/prometheus/prometheus.yml
+          printf "%s\n" "$${SCRAPE_CONFIGS}" >> /etc/prometheus/prometheus.yml
+        else
+          echo "scrape_configs: []" >> /etc/prometheus/prometheus.yml
+        fi
+
+        if [ -n "$${UPSTREAM_PROMETHEUS_REMOTE_WRITE_URL:-}" ]; then
+          echo "remote_write:" >> /etc/prometheus/prometheus.yml
+          echo "  - url: $${UPSTREAM_PROMETHEUS_REMOTE_WRITE_URL}" >> /etc/prometheus/prometheus.yml
+          if [ -n "$${UPSTREAM_PROMETHEUS_BASIC_AUTH_USER:-}" ] && [ -n "$${UPSTREAM_PROMETHEUS_BASIC_AUTH_PASS:-}" ]; then
+            cat >> /etc/prometheus/prometheus.yml <<EOF
+            basic_auth:
+              username: $${UPSTREAM_PROMETHEUS_BASIC_AUTH_USER}
+              password: $${UPSTREAM_PROMETHEUS_BASIC_AUTH_PASS}
+        EOF
+          fi
+          if [ -n "$${UPSTREAM_PROMETHEUS_REMOTE_WRITE_CONFIG:-}" ]; then
+            printf "%s\n" "$${UPSTREAM_PROMETHEUS_REMOTE_WRITE_CONFIG}" >> /etc/prometheus/prometheus.yml
+          fi
+        fi
+
+        PROM_ADDITIONAL_EXEC_ARGS=""
+        if [ -f /etc/prometheus/web.yml ]; then
+          PROM_ADDITIONAL_EXEC_ARGS="--web.config.file=/etc/prometheus/web.yml"
+        fi
+
+        exec /bin/prometheus \
+          --config.file=/etc/prometheus/prometheus.yml \
+          --log.level=info \
+          --storage.tsdb.path=/prometheus \
+          --storage.tsdb.retention.time=$${EDGE_PROM_RETENTION_TIME:-6h} \
+          --web.enable-remote-write-receiver \
+          $${PROM_ADDITIONAL_EXEC_ARGS}
+
+    # NETWORK:
+    networks:
+      - swarm-public
+    ports:
+      - target: 9090
+        published: ${EDGE_PROM_PUBLISHED_PORT:-9090}
+        protocol: tcp
+        mode: host
+
+    # ENVIRONMENT:
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      EDGE_PROM_BASIC_AUTH_USER: ${EDGE_PROM_BASIC_AUTH_USER:-}
+      EDGE_PROM_BASIC_AUTH_PASS_HASH: ${EDGE_PROM_BASIC_AUTH_PASS_HASH:-}
+      EDGE_PROM_SCRAPE_INTERVAL: ${EDGE_PROM_SCRAPE_INTERVAL:-15s}
+      EDGE_PROM_EVAL_INTERVAL: ${EDGE_PROM_EVAL_INTERVAL:-15s}
+      EDGE_PROM_EXTERNAL_LABELS: ${EDGE_PROM_EXTERNAL_LABELS:-}
+      EDGE_PROM_ADDITIONAL_SCRAPE_CONFIGS: ${EDGE_PROM_ADDITIONAL_SCRAPE_CONFIGS:-}
+      EDGE_PROM_ENABLE_SELF_SCRAPE: ${EDGE_PROM_ENABLE_SELF_SCRAPE:-true}
+      UPSTREAM_PROMETHEUS_REMOTE_WRITE_URL: ${UPSTREAM_PROMETHEUS_REMOTE_WRITE_URL:-}
+      UPSTREAM_PROMETHEUS_BASIC_AUTH_USER: ${UPSTREAM_PROMETHEUS_BASIC_AUTH_USER:-}
+      UPSTREAM_PROMETHEUS_BASIC_AUTH_PASS: ${UPSTREAM_PROMETHEUS_BASIC_AUTH_PASS:-}
+      UPSTREAM_PROMETHEUS_REMOTE_WRITE_CONFIG: ${UPSTREAM_PROMETHEUS_REMOTE_WRITE_CONFIG:-}
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: ${EDGE_PROM_DATA_PATH:?}
+        target: /prometheus

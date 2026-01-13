@@ -656,6 +656,11 @@ services:
         # Configure router domain
         - "traefik.http.routers.prometheus.rule=Host(`${TRAEFIK_DOMAIN:?}`) && PathPrefix(`${TRAEFIK_PATH_PREFIX_PROMETHEUS:?}`)"
 
+    healthcheck:
+      test: ['CMD', 'pidof', 'prometheus']
+      interval: 15s
+      timeout: 10s
+      retries: 5
     entrypoint:
       - "/bin/sh"
       - "-c"
@@ -685,22 +690,6 @@ services:
             scrape_interval: 1m
             static_configs:
               - targets: ['localhost:9090']
-
-          - job_name: 'cadvisor'
-            dns_sd_configs:
-            - names:
-              - 'tasks.cadvisor'      # Use the 'tasks.' prefix to discover all tasks
-              type: 'A'               # Type of DNS query (e.g., 'A' for IPv4, 'SRV' for service records)
-              port: 8080              # Port service is running on
-              refresh_interval: 60s   # How often Prometheus should refresh DNS records
-
-          - job_name: 'node-exporter'
-            dns_sd_configs:
-            - names:
-              - 'tasks.node-exporter'
-              type: 'A'
-              port: 9100
-              refresh_interval: 60s
 
           - job_name: 'loki'
             dns_sd_configs:
@@ -880,123 +869,6 @@ services:
       - type: bind
         source: ${PROMETHEUS_DATA_PATH:?}
         target: /prometheus
-
-  # -- cAdvisor (Container Advisor)  --
-  #
-  # Provides container users an understanding of the resource usage and performance characteristics of their
-  # running containers. It is a running daemon that collects, aggregates, processes, and exports information about
-  # running containers. Specifically, for each container it keeps resource isolation parameters, historical
-  # resource usage, histograms of complete historical resource usage and network statistics.
-  #
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.47.0 #>convert_sha256
-    command: -logtostderr -docker_only
-    deploy:
-      mode: global
-      resources:
-        limits:
-          memory: 200M
-        reservations:
-          memory: 64M
-      placement:
-        constraints:
-          # Run this on all linux nodes
-          - node.platform.os == linux
-
-    # NETWORK:
-    networks:
-      - private-net
-
-    # VOLUMES:
-    volumes:
-      - type: bind
-        source: /
-        target: /rootfs
-        read_only: true
-      - type: bind
-        source: /var/run
-        target: /var/run
-        read_only: true
-      - type: bind
-        source: /sys
-        target: /sys
-        read_only: true
-      - type: bind
-        source: /var/lib/docker
-        target: /var/lib/docker
-        read_only: true
-      - type: bind
-        source: /dev/disk
-        target: /dev/disk
-        read_only: true
-
-  # -- Node exporter --
-  #
-  # Prometheus exporter for hardware and OS metrics exposed by *NIX kernels, written in Go with pluggable metric collectors.
-  #
-  node-exporter:
-    image: prom/node-exporter:v1.8.2 #>convert_sha256
-    deploy:
-      mode: global
-      resources:
-        limits:
-          memory: 64M
-        reservations:
-          memory: 32M
-      placement:
-        constraints:
-          # Run this on all linux nodes
-          - node.platform.os == linux
-    entrypoint:
-      - "/bin/sh"
-      - "-c"
-      - |
-        set -e
-
-        echo "Setting configuration..."
-        NODE_NAME=$$(cat /etc/nodename)
-        mkdir -p /tmp/node-exporter
-        echo "node_meta{node_id=\"$$NODE_ID\", container_label_com_docker_swarm_node_id=\"$$NODE_ID\", node_name=\"$$NODE_NAME\", instance=\"$$NODE_NAME\"} 1" > /tmp/node-exporter/node-meta.prom
-        echo
-
-        echo "### Running node-exporter ###"
-        echo "/bin/node_exporter $${@}"
-        exec /bin/node_exporter $${@}
-    command:
-      - ""
-      - "--no-collector.ipvs"
-      - "--path.rootfs=/rootfs"
-      - "--path.procfs=/host/proc"
-      - "--path.sysfs=/host/sys"
-      - "--collector.textfile.directory=/tmp/node-exporter/"
-      - "--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+|run/credentials/.+)($$|/)"
-
-    # NETWORK:
-    networks:
-      - private-net
-
-    # ENVIRONMENT:
-    environment:
-      - NODE_ID={{.Node.ID}}
-
-    # VOLUMES:
-    volumes:
-      - type: bind
-        source: /
-        target: /rootfs
-        read_only: true
-      - type: bind
-        source: /proc
-        target: /host/proc
-        read_only: true
-      - type: bind
-        source: /sys
-        target: /host/sys
-        read_only: true
-      - type: bind
-        source: /etc/hostname
-        target: /etc/nodename
-        read_only: true
 
   # -- Grafana Alertmanager --
   #
