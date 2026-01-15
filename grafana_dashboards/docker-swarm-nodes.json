@@ -142,7 +142,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "topk(1, sum((node_time_seconds - node_boot_time_seconds) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"}) by (node_name))",
+                    "expr": "topk(1, sum((node_time_seconds - node_boot_time_seconds) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"}) by (node_name))",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "",
@@ -224,7 +224,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "count(node_meta * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"})",
+                    "expr": "count(node_meta * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"})",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "",
@@ -306,7 +306,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "count(node_cpu_seconds_total{mode=\"idle\"} * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"})",
+                    "expr": "count(node_cpu_seconds_total{mode=\"idle\"} * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"})",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "",
@@ -388,7 +388,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum(node_memory_MemTotal_bytes * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"})",
+                    "expr": "sum(node_memory_MemTotal_bytes * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"})",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "",
@@ -469,7 +469,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum(node_filesystem_size_bytes{mountpoint=\"/\"} * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"})",
+                    "expr": "sum(node_filesystem_size_bytes{mountpoint=\"/\"} * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"})",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "",
@@ -573,7 +573,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "node_load5 * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"}",
+                    "expr": "node_load5 * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"}",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "load5 {{node_name}}",
@@ -719,7 +719,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "100 - (avg(irate(node_cpu_seconds_total{mode=\"idle\"}[$interval])  * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"} * 100) by (node_name))",
+                    "expr": "100 - (avg(irate(node_cpu_seconds_total{mode=\"idle\"}[$interval])  * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"} * 100) by (node_name))",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "{{node_name}}",
@@ -819,7 +819,7 @@
                     "disableTextWrap": false,
                     "editorMode": "code",
                     "exemplar": false,
-                    "expr": "container_start_time_seconds * on (instance) group_left(node_name)\nnode_meta{node_name=~\"${node_id}\"}",
+                    "expr": "container_start_time_seconds{container_label_com_docker_swarm_node_id!=\"\"} * on(container_label_com_docker_swarm_node_id) group_left(node_name)\nlabel_replace(node_meta{node_name=~\"${node_name}\"}, \"container_label_com_docker_swarm_node_id\", \"$1\", \"node_id\", \"(.*)\")",
                     "format": "table",
                     "fullMetaSearch": false,
                     "hide": false,
@@ -939,7 +939,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum(irate(node_cpu_seconds_total{mode=\"idle\"}[$interval]) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"}) * 100 / count(node_cpu_seconds_total{mode=\"user\"} * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"}) ",
+                    "expr": "sum(irate(node_cpu_seconds_total{mode=\"idle\"}[$interval]) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"}) * 100 / count(node_cpu_seconds_total{mode=\"user\"} * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"}) ",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "",
@@ -1024,7 +1024,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum((node_filesystem_free_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"} * 100) / count(node_meta * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"})",
+                    "expr": "sum((node_filesystem_free_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"} * 100) / count(node_meta * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"})",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "",
@@ -1108,7 +1108,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum((node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"} * 100) / count(node_meta * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"})",
+                    "expr": "sum((node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"} * 100) / count(node_meta * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"})",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "",
@@ -1211,7 +1211,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum((node_memory_MemTotal_bytes - node_memory_MemFree_bytes - node_memory_Cached_bytes - node_memory_Buffers_bytes - node_memory_Slab_bytes) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"}) by (node_name)",
+                    "expr": "sum((node_memory_MemTotal_bytes - node_memory_MemFree_bytes - node_memory_Cached_bytes - node_memory_Buffers_bytes - node_memory_Slab_bytes) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"}) by (node_name)",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "Used {{node_name}}",
@@ -1223,7 +1223,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum(node_memory_Cached * on(instance) group_left(node_name) node_meta{node_id=~\"$node_id\"}) by (node_name)",
+                    "expr": "sum(node_memory_Cached * on(instance) group_left(node_name) node_meta{node_id=~\"$node_name\"}) by (node_name)",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "Cached {{node_name}}",
@@ -1329,7 +1329,7 @@
                     },
                     "editorMode": "code",
                     "exemplar": false,
-                    "expr": "node_filesystem_avail_bytes * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"}",
+                    "expr": "node_filesystem_avail_bytes * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"}",
                     "format": "heatmap",
                     "instant": false,
                     "interval": "",
@@ -1458,7 +1458,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum(irate(node_disk_read_bytes_total[$interval]) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"}) by (node_name)",
+                    "expr": "sum(irate(node_disk_read_bytes_total[$interval]) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"}) by (node_name)",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "Read {{node_name}}",
@@ -1470,7 +1470,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum(irate(node_disk_written_bytes_total[$interval]) * on(instance) group_left(node_name) node_meta{node_id=~\"$node_id\"}) by (node_name)",
+                    "expr": "sum(irate(node_disk_written_bytes_total[$interval]) * on(instance) group_left(node_name) node_meta{node_id=~\"$node_name\"}) by (node_name)",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "Written {{node_name}}",
@@ -1573,7 +1573,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum(irate(node_disk_reads_completed_total[$interval]) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"}) by (node_name)",
+                    "expr": "sum(irate(node_disk_reads_completed_total[$interval]) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"}) by (node_name)",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "Reads {{node_name}}",
@@ -1585,7 +1585,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum(irate(node_disk_writes_completed_total[$interval]) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"}) by (node_name)",
+                    "expr": "sum(irate(node_disk_writes_completed_total[$interval]) * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"}) by (node_name)",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "Writes {{node_name}}",
@@ -1729,7 +1729,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "(avg(irate(node_cpu_seconds_total{mode=\"iowait\"}[$interval])  * on(instance) group_left(node_name) node_meta{node_name=~\"$node_id\"} * 100) by (node_name))",
+                    "expr": "(avg(irate(node_cpu_seconds_total{mode=\"iowait\"}[$interval])  * on(instance) group_left(node_name) node_meta{node_name=~\"$node_name\"} * 100) by (node_name))",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "{{node_name}}",
@@ -1871,7 +1871,7 @@
                         "uid": "${DS_PROMETHEUS}"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(container_last_seen[5m]) * on(container_label_com_docker_swarm_node_id) group_left(node_name) node_meta{node_name=~\"${node_id}\"}) by (container_label_com_docker_swarm_service_name)",
+                    "expr": "sum(rate(container_last_seen{container_label_com_docker_swarm_node_id!=\"\"}[5m]) * on(container_label_com_docker_swarm_node_id) group_left(node_name) label_replace(node_meta{node_name=~\"${node_name}\"}, \"container_label_com_docker_swarm_node_id\", \"$1\", \"node_id\", \"(.*)\")) by (container_label_com_docker_swarm_service_name)",
                     "format": "time_series",
                     "hide": false,
                     "intervalFactor": 10,
@@ -1954,7 +1954,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "count(rate(container_last_seen[5m]) * on(container_label_com_docker_swarm_node_id) group_left(node_name) node_meta{node_name=~\"$node_id\"})",
+                    "expr": "count(rate(container_last_seen{container_label_com_docker_swarm_node_id!=\"\"}[5m]) * on(container_label_com_docker_swarm_node_id) group_left(node_name) label_replace(node_meta{node_name=~\"$node_name\"}, \"container_label_com_docker_swarm_node_id\", \"$1\", \"node_id\", \"(.*)\"))",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "refId": "A",
@@ -2055,7 +2055,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "sum(rate(container_network_receive_bytes_total[$interval]) * on(container_label_com_docker_swarm_node_id) group_left(node_name) node_meta{node_name=~\"${node_id}\"}) by (node_name)",
+                    "expr": "sum(rate(container_network_receive_bytes_total{container_label_com_docker_swarm_node_id!=\"\"}[$interval]) * on(container_label_com_docker_swarm_node_id) group_left(node_name) label_replace(node_meta{node_name=~\"${node_name}\"}, \"container_label_com_docker_swarm_node_id\", \"$1\", \"node_id\", \"(.*)\")) by (node_name)",
                     "format": "time_series",
                     "intervalFactor": 2,
                     "legendFormat": "IN {{node_name}}",
@@ -2067,7 +2067,7 @@
                         "type": "prometheus",
                         "uid": "${DS_PROMETHEUS}"
                     },
-                    "expr": "- sum(rate(container_network_transmit_bytes_total[$interval]) * on(container_label_com_docker_swarm_node_id) group_left(node_name) node_meta{node_name=~\"${node_id}\"}) by (node_name)",
+                    "expr": "- sum(rate(container_network_transmit_bytes_total{container_label_com_docker_swarm_node_id!=\"\"}[$interval]) * on(container_label_com_docker_swarm_node_id) group_left(node_name) label_replace(node_meta{node_name=~\"${node_name}\"}, \"container_label_com_docker_swarm_node_id\", \"$1\", \"node_id\", \"(.*)\")) by (node_name)",
                     "format": "time_series",
                     "hide": false,
                     "intervalFactor": 2,
@@ -2192,7 +2192,7 @@
                 "definition": "",
                 "includeAll": true,
                 "label": "Swarm Node",
-                "name": "node_id",
+                "name": "node_name",
                 "options": [],
                 "query": "node_meta",
                 "refresh": 1,

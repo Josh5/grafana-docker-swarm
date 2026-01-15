@@ -299,6 +299,6 @@ services:
         target: /var/lib/docker
         read_only: true
       - type: bind
-        source: /dev/disk
-        target: /dev/disk
+        source: /dev
+        target: /dev
         read_only: true

@@ -126,8 +126,8 @@ services:
       timeout: 10s
       retries: 5
     entrypoint:
-      - "/bin/sh"
-      - "-c"
+      - '/bin/sh'
+      - '-c'
       - |
         set -eu
 
