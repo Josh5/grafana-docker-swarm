@@ -1,6 +1,6 @@
 # ---------------
-# Prometheus Node Exporter Agent
-#   Scrapes node-exporter and forwards metrics to an upstream edge relay.
+# Prometheus Metrics Agent
+#   Scrapes host/container metrics and forwards them to an upstream edge relay.
 #
 # ---------------
 # Config (paste into portainer advance env text input):
@@ -70,7 +70,7 @@ volumes:
     name: ${PROM_AGENT_DATA_VOLUME:-prometheus-node-agent-data}
 
 services:
-  prometheus-node-agent:
+  prometheus:
     image: prom/prometheus:v3.0.1
     user: '65534:65534'
     deploy:
