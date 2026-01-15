@@ -74,7 +74,8 @@ services:
     image: prom/prometheus:v3.0.1
     user: '65534:65534'
     deploy:
-      mode: global
+      mode: replicated
+      replicas: 1
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -120,17 +121,19 @@ services:
         cat >> /etc/prometheus/prometheus.yml <<EOF
         scrape_configs:
           - job_name: node-exporter
-            static_configs:
-              - targets: ["node-exporter:9100"]
-            relabel_configs:
-              - target_label: instance
-                replacement: "$${NODE_NAME}"
+            dns_sd_configs:
+            - names:
+              - 'tasks.node-exporter'
+              type: 'A'
+              port: 9100
+              refresh_interval: 60s
           - job_name: cadvisor
-            static_configs:
-              - targets: ["cadvisor:8080"]
-            relabel_configs:
-              - target_label: instance
-                replacement: "$${NODE_NAME}"
+            dns_sd_configs:
+            - names:
+              - 'tasks.cadvisor'
+              type: 'A'
+              port: 8080
+              refresh_interval: 60s
           - job_name: prometheus
             static_configs:
               - targets: ["localhost:9090"]
@@ -168,8 +171,8 @@ services:
     # ENVIRONMENT:
     environment:
       TZ: ${TZ:-Etc/UTC}
-      NODE_ID: "{{.Node.ID}}"
-      NODE_NAME: "{{.Node.Hostname}}"
+      NODE_ID: '{{.Node.ID}}'
+      NODE_NAME: '{{.Node.Hostname}}'
       PROM_AGENT_SCRAPE_INTERVAL: ${PROM_AGENT_SCRAPE_INTERVAL:-15s}
       PROM_AGENT_EVAL_INTERVAL: ${PROM_AGENT_EVAL_INTERVAL:-15s}
       PROM_AGENT_EXTERNAL_LABELS: ${PROM_AGENT_EXTERNAL_LABELS:-}
@@ -212,7 +215,7 @@ services:
         NODE_NAME=$$(cat /etc/nodename)
         NODE_ID=$${NODE_ID:-$${NODE_NAME}}
         mkdir -p /tmp/node-exporter
-        echo "node_meta{node_id=\"$$NODE_ID\", node_name=\"$$NODE_NAME\", instance=\"$$NODE_NAME\"} 1" > /tmp/node-exporter/node-meta.prom
+        echo "node_meta{node_id=\"$$NODE_ID\", node_name=\"$$NODE_NAME\"} 1" > /tmp/node-exporter/node-meta.prom
         echo
 
         echo "### Running node-exporter ###"

@@ -21,7 +21,7 @@
             "type": "grafana",
             "id": "grafana",
             "name": "Grafana",
-            "version": "11.3.0"
+            "version": "11.6.1"
         },
         {
             "type": "datasource",
@@ -97,8 +97,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -136,7 +135,7 @@
                 "textMode": "auto",
                 "wideLayout": true
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -181,8 +180,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -219,7 +217,7 @@
                 "textMode": "auto",
                 "wideLayout": true
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -263,8 +261,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -302,7 +299,7 @@
                 "textMode": "auto",
                 "wideLayout": true
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -347,8 +344,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -385,7 +381,7 @@
                 "textMode": "auto",
                 "wideLayout": true
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -429,8 +425,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -467,7 +462,7 @@
                 "textMode": "auto",
                 "wideLayout": true
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -533,8 +528,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -567,11 +561,12 @@
                     "showLegend": false
                 },
                 "tooltip": {
+                    "hideZeros": false,
                     "mode": "multi",
                     "sort": "desc"
                 }
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -638,8 +633,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -713,11 +707,12 @@
                     "showLegend": false
                 },
                 "tooltip": {
+                    "hideZeros": false,
                     "mode": "multi",
                     "sort": "desc"
                 }
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -758,8 +753,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -815,7 +809,7 @@
                 "showHeader": false,
                 "sortBy": []
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -825,7 +819,7 @@
                     "disableTextWrap": false,
                     "editorMode": "code",
                     "exemplar": false,
-                    "expr": "container_start_time_seconds * on (container_label_com_docker_swarm_node_id) group_left(node_name)\nnode_meta{node_name=~\"${node_id}\"}",
+                    "expr": "container_start_time_seconds * on (instance) group_left(node_name)\nnode_meta{node_name=~\"${node_id}\"}",
                     "format": "table",
                     "fullMetaSearch": false,
                     "hide": false,
@@ -898,8 +892,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "rgba(245, 54, 54, 0.9)",
-                                "value": null
+                                "color": "rgba(245, 54, 54, 0.9)"
                             },
                             {
                                 "color": "rgba(237, 129, 40, 0.89)",
@@ -939,7 +932,7 @@
                 "showThresholdMarkers": true,
                 "sizing": "auto"
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -985,8 +978,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "rgba(245, 54, 54, 0.9)",
-                                "value": null
+                                "color": "rgba(245, 54, 54, 0.9)"
                             },
                             {
                                 "color": "rgba(237, 129, 40, 0.89)",
@@ -1025,7 +1017,7 @@
                 "showThresholdMarkers": true,
                 "sizing": "auto"
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -1070,8 +1062,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "rgba(245, 54, 54, 0.9)",
-                                "value": null
+                                "color": "rgba(245, 54, 54, 0.9)"
                             },
                             {
                                 "color": "rgba(237, 129, 40, 0.89)",
@@ -1110,7 +1101,7 @@
                 "showThresholdMarkers": true,
                 "sizing": "auto"
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -1176,8 +1167,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -1209,11 +1199,12 @@
                     "showLegend": true
                 },
                 "tooltip": {
+                    "hideZeros": false,
                     "mode": "multi",
                     "sort": "none"
                 }
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -1291,8 +1282,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -1325,11 +1315,12 @@
                     "showLegend": true
                 },
                 "tooltip": {
+                    "hideZeros": false,
                     "mode": "multi",
                     "sort": "none"
                 }
             },
-            "pluginVersion": "11.3.0",
+            "pluginVersion": "11.6.1",
             "targets": [
                 {
                     "datasource": {
@@ -1424,8 +1415,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
-                                "value": null
+                                "color": "green"
                             },
                             {
                                 "color": "red",
@@ -2183,7 +2173,7 @@
         }
     ],
     "refresh": "30s",
-    "schemaVersion": 40,
+    "schemaVersion": 41,
     "tags": [
         "prometheus",
         "node-exporter",
@@ -2221,7 +2211,7 @@
                 "name": "interval",
                 "options": [
                     {
-                        "selected": true,
+                        "selected": false,
                         "text": "1m",
                         "value": "1m"
                     },
@@ -2278,7 +2268,7 @@
         ]
     },
     "time": {
-        "from": "now-15m",
+        "from": "now-30m",
         "to": "now"
     },
     "timepicker": {},
