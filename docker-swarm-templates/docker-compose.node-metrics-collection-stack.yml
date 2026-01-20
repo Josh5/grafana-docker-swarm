@@ -62,7 +62,7 @@
 #
 ---
 networks:
-  metrics-net:
+  node-metrics-collection-net:
     driver: overlay
     attachable: true
 volumes:
