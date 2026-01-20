@@ -263,7 +263,7 @@ services:
   # running containers.
   #
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
     command: -logtostderr -docker_only
     deploy:
       mode: global
