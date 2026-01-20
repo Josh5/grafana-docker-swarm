@@ -167,7 +167,7 @@ services:
 
     # NETWORK:
     networks:
-      - metrics-net
+      - node-metrics-collection-net
     # ENVIRONMENT:
     environment:
       TZ: ${TZ:-Etc/UTC}
@@ -232,7 +232,7 @@ services:
 
     # NETWORK:
     networks:
-      - metrics-net
+      - node-metrics-collection-net
 
     # ENVIRONMENT:
     environment:
@@ -278,7 +278,7 @@ services:
 
     # NETWORK:
     networks:
-      - metrics-net
+      - node-metrics-collection-net
 
     # VOLUMES:
     volumes:
