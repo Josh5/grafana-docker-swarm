@@ -22,6 +22,9 @@
 #   #-    The Path to the Prometheus data directory
 #   EDGE_PROM_DATA_PATH=./appdata/prometheus-edge-relay
 #   #@ Prometheus Config
+#   #-  - EDGE_PROM_MEMORY_LIMIT -
+#   #-    Memory limit for the edge relay container
+#   EDGE_PROM_MEMORY_LIMIT=700M
 #   #-  - EDGE_PROM_PUBLISHED_PORT -
 #   #-    The published port for the remote_write receiver
 #   EDGE_PROM_PUBLISHED_PORT=9090
@@ -117,7 +120,7 @@ services:
           - ${EDGE_PROM_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
       resources:
         limits:
-          memory: 700M
+          memory: ${EDGE_PROM_MEMORY_LIMIT:-700M}
         reservations:
           memory: 128M
     healthcheck:
