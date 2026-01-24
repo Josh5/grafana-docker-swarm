@@ -117,7 +117,7 @@ services:
           - ${EDGE_PROM_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
       resources:
         limits:
-          memory: 512M
+          memory: 700M
         reservations:
           memory: 128M
     healthcheck:
