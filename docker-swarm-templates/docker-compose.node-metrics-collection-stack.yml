@@ -1,6 +1,7 @@
 # ---------------
 # Node Metrics Collection Agent
-#   Scrapes host/container metrics and forwards them to an upstream metrics router or endpoint.
+#   Runs one collector per node, scrapes local host/container metrics, and forwards them to an upstream
+#   metrics router or endpoint.
 #
 # ---------------
 # Config (paste into portainer advance env text input):
@@ -21,6 +22,9 @@
 #   #-    Optional cluster label attached to metrics when external labels
 #   #-    are not explicitly overridden.
 #   NODE_CLUSTER=default
+#   #-  - DOCKER_SOCKET_PATH -
+#   #-    Optional host path for the Docker socket mounted into vmagent.
+#   DOCKER_SOCKET_PATH=/var/run/docker.sock
 #   #@ Storage
 #   #-  - PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE -
 #   #-    Max on-disk queue size per remote_write URL, e.g. 1GB or 500MiB
@@ -49,11 +53,6 @@
 #   METRICS_REMOTE_WRITE_BASIC_AUTH_PASS=
 # <config_end>
 #
----
-networks:
-  node-metrics-collection-net:
-    driver: overlay
-    attachable: true
 volumes:
   node-agent-data:
     name: node-metrics-collection-agent-data
@@ -91,6 +90,17 @@ services:
           exit 1
         fi
 
+        NODE_NAME="$${NODE_NAME:-}"
+        NODE_ID="$${NODE_ID:-}"
+
+        if [ -z "$$NODE_NAME" ] || [ "$$NODE_NAME" = "{{.Node.Hostname}}" ]; then
+          NODE_NAME="$$(cat /etc/nodename)"
+        fi
+        if [ -z "$$NODE_ID" ] || [ "$$NODE_ID" = "{{.Node.ID}}" ]; then
+          NODE_ID="$$NODE_NAME"
+        fi
+        export NODE_NAME NODE_ID
+
         mkdir -p /etc/vmagent
 
         cat > /etc/vmagent/prometheus.yml <<EOF
@@ -111,17 +121,43 @@ services:
         cat >> /etc/vmagent/prometheus.yml <<EOF
         scrape_configs:
           - job_name: node-exporter
-            dns_sd_configs:
-            - names:
-              - 'tasks.node-exporter'
-              type: 'A'
+            docker_sd_configs:
+            - host: unix:///var/run/docker.sock
               port: 9100
+            relabel_configs:
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: (.+_)?node-exporter
+              action: keep
+            # This stack expects exporters to run on Docker-managed bridge/overlay networks.
+            # Host-networked containers are intentionally ignored.
+            - source_labels: [__meta_docker_container_network_mode]
+              regex: host
+              action: drop
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_task_desired_state]
+              regex: running
+              action: keep
+            - source_labels: [__meta_docker_network_ingress]
+              regex: true
+              action: drop
           - job_name: cadvisor
-            dns_sd_configs:
-            - names:
-              - 'tasks.cadvisor'
-              type: 'A'
+            docker_sd_configs:
+            - host: unix:///var/run/docker.sock
               port: 8080
+            relabel_configs:
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: (.+_)?cadvisor
+              action: keep
+            # This stack expects exporters to run on Docker-managed bridge/overlay networks.
+            # Host-networked containers are intentionally ignored.
+            - source_labels: [__meta_docker_container_network_mode]
+              regex: host
+              action: drop
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_task_desired_state]
+              regex: running
+              action: keep
+            - source_labels: [__meta_docker_network_ingress]
+              regex: true
+              action: drop
           - job_name: vmagent
             static_configs:
               - targets: ["localhost:8429"]
@@ -145,15 +181,13 @@ services:
 
         exec /vmagent-prod \
           -promscrape.config=/etc/vmagent/prometheus.yml \
+          -promscrape.dockerSDCheckInterval=60s \
           -remoteWrite.url=$${METRICS_REMOTE_WRITE_URL} \
           -remoteWrite.tmpDataPath=/vmagent-remotewrite-data \
           -httpListenAddr=:8429 \
           $${VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS} \
           $${VMAGENT_REMOTE_WRITE_MAX_DISK_USAGE_ARGS}
 
-    # NETWORK:
-    networks:
-      - node-metrics-collection-net
     # ENVIRONMENT:
     environment:
       TZ: ${TZ:-Etc/UTC}
@@ -173,6 +207,14 @@ services:
       - type: volume
         source: node-agent-data
         target: /vmagent-remotewrite-data
+      - type: bind
+        source: ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}
+        target: /var/run/docker.sock
+        read_only: true
+      - type: bind
+        source: /etc/hostname
+        target: /etc/nodename
+        read_only: true
 
   # -- Node exporter --
   #
@@ -227,10 +269,6 @@ services:
       - '--collector.textfile.directory=/tmp/node-exporter/'
       - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+|run/credentials/.+)($$|/)'
 
-    # NETWORK:
-    networks:
-      - node-metrics-collection-net
-
     # ENVIRONMENT:
     environment:
       - NODE_ID={{.Node.ID}}
@@ -281,10 +319,6 @@ services:
       placement:
         constraints:
           - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
-
-    # NETWORK:
-    networks:
-      - node-metrics-collection-net
 
     # VOLUMES:
     volumes:
