@@ -2185,7 +2185,11 @@
         "list": [
             {
                 "allValue": ".+",
-                "current": {},
+                "current": {
+                    "selected": true,
+                    "text": "All",
+                    "value": "$__all"
+                },
                 "datasource": {
                     "type": "prometheus",
                     "uid": "${DS_PROMETHEUS}"
@@ -2202,7 +2206,11 @@
             },
             {
                 "allValue": ".+",
-                "current": {},
+                "current": {
+                    "selected": true,
+                    "text": "All",
+                    "value": "$__all"
+                },
                 "datasource": {
                     "type": "prometheus",
                     "uid": "${DS_PROMETHEUS}"
