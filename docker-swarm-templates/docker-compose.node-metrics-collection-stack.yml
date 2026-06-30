@@ -28,11 +28,8 @@
 #   PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE=1GB
 #   #@ Scrape Config
 #   #-  - PROM_AGENT_SCRAPE_INTERVAL -
-#   #-    Scrape interval for node-exporter
+#   #-    Scrape interval for node-exporter and cadvisor
 #   PROM_AGENT_SCRAPE_INTERVAL=15s
-#   #-  - PROM_AGENT_EVAL_INTERVAL -
-#   #-    Evaluation interval for rules
-#   PROM_AGENT_EVAL_INTERVAL=15s
 #   #-  - PROM_AGENT_EXTERNAL_LABELS -
 #   #-    External labels block (indented 4 spaces), e.g.:
 #   #-      edge: "vps-1"
@@ -101,7 +98,6 @@ services:
         cat > /etc/vmagent/prometheus.yml <<EOF
         global:
           scrape_interval: $${PROM_AGENT_SCRAPE_INTERVAL:-15s}
-          evaluation_interval: $${PROM_AGENT_EVAL_INTERVAL:-15s}
         EOF
 
         if [ -n "$${PROM_AGENT_EXTERNAL_LABELS:-}" ]; then
@@ -122,14 +118,12 @@ services:
               - 'tasks.node-exporter'
               type: 'A'
               port: 9100
-              refresh_interval: 60s
           - job_name: cadvisor
             dns_sd_configs:
             - names:
               - 'tasks.cadvisor'
               type: 'A'
               port: 8080
-              refresh_interval: 60s
           - job_name: vmagent
             static_configs:
               - targets: ["localhost:8429"]
@@ -170,7 +164,6 @@ services:
       NODE_CLUSTER: ${NODE_CLUSTER:-default}
       PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE: ${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE:-1GB}
       PROM_AGENT_SCRAPE_INTERVAL: ${PROM_AGENT_SCRAPE_INTERVAL:-15s}
-      PROM_AGENT_EVAL_INTERVAL: ${PROM_AGENT_EVAL_INTERVAL:-15s}
       PROM_AGENT_EXTERNAL_LABELS: ${PROM_AGENT_EXTERNAL_LABELS:-}
       PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS: ${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}
       EDGE_REMOTE_WRITE_URL: ${EDGE_REMOTE_WRITE_URL:?}
