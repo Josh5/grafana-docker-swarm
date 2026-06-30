@@ -183,6 +183,18 @@ services:
   node-exporter:
     # Releases: https://hub.docker.com/r/prom/node-exporter/tags
     image: prom/node-exporter:v1.11.1 #>convert_sha256
+    healthcheck:
+      test:
+        [
+          'CMD',
+          '/bin/sh',
+          '-c',
+          'wget --quiet --tries=1 --spider http://localhost:9100/ || exit 1',
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     deploy:
       mode: global
       resources:
@@ -258,6 +270,9 @@ services:
       - -housekeeping_interval=15s
       - -max_housekeeping_interval=60s
       - -allow_dynamic_housekeeping=true
+    # NOTE: The cadvisor already defines a healthcheck. No point specifying it here incase they change it again.
+    # healthcheck:
+    #   ...
     deploy:
       mode: global
       resources:
