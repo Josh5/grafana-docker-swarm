@@ -264,8 +264,14 @@ services:
   # running containers.
   #
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    command: -logtostderr -docker_only
+    # cAdvisor Releases: https://github.com/google/cadvisor/pkgs/container/cadvisor/versions?filters%5Bversion_type%5D=tagged
+    image: ghcr.io/google/cadvisor:v0.60.3 #>convert_sha256
+    command:
+      - -logtostderr
+      - -docker_only
+      - -housekeeping_interval=15s
+      - -max_housekeeping_interval=60s
+      - -allow_dynamic_housekeeping=true
     deploy:
       mode: global
       resources:
