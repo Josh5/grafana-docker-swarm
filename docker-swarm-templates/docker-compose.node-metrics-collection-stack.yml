@@ -1,6 +1,6 @@
 # ---------------
 # Node Metrics Collection Agent
-#   Scrapes host/container metrics and forwards them to an upstream edge relay.
+#   Scrapes host/container metrics and forwards them to an upstream metrics router or endpoint.
 #
 # ---------------
 # Config (paste into portainer advance env text input):
@@ -12,8 +12,7 @@
 #   #-        - node.hostname==<hostname>
 #   #-        - engine.labels.fs-access.<worker-hostname>.mnt==true
 #   #-        - node.role!=manager
-#   PROM_AGENT_PLACEMENT_CONSTRAINT=engine.labels.node-type==swarm-monitor
-#   NODE_EXPORTER_PLACEMENT_CONSTRAINT=node.platform.os==linux
+#   PLACEMENT_CONSTRAINT=node.platform.os==linux
 #   #@ Host Config
 #   #-  - TZ -
 #   #-    The timezone.
@@ -37,17 +36,17 @@
 #   #-  - PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS -
 #   #-    Additional scrape_configs entries (indented 2 spaces)
 #   PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS=
-#   #@ Remote Write (Edge Relay)
-#   #-  - EDGE_REMOTE_WRITE_URL -
-#   #-    Edge relay remote_write URL, e.g.:
-#   #-      https://edge.example.com/api/v1/write
-#   EDGE_REMOTE_WRITE_URL=
-#   #-  - EDGE_REMOTE_WRITE_BASIC_AUTH_USER -
-#   #-    Optional username for edge relay basic auth
-#   EDGE_REMOTE_WRITE_BASIC_AUTH_USER=
-#   #-  - EDGE_REMOTE_WRITE_BASIC_AUTH_PASS -
-#   #-    Optional password for edge relay basic auth
-#   EDGE_REMOTE_WRITE_BASIC_AUTH_PASS=
+#   #@ Remote Write (Metrics Router or Endpoint)
+#   #-  - METRICS_REMOTE_WRITE_URL -
+#   #-    Metrics router remote_write URL, e.g.:
+#   #-      https://router.example.com/api/v1/write
+#   METRICS_REMOTE_WRITE_URL=
+#   #-  - METRICS_REMOTE_WRITE_BASIC_AUTH_USER -
+#   #-    Optional username for metrics router basic auth
+#   METRICS_REMOTE_WRITE_BASIC_AUTH_USER=
+#   #-  - METRICS_REMOTE_WRITE_BASIC_AUTH_PASS -
+#   #-    Optional password for metrics router basic auth
+#   METRICS_REMOTE_WRITE_BASIC_AUTH_PASS=
 # <config_end>
 #
 ---
@@ -63,20 +62,19 @@ services:
   vmagent:
     image: victoriametrics/vmagent:v1.146.0 #>convert_sha256
     deploy:
-      mode: replicated
-      replicas: 1
+      mode: global
       restart_policy:
         condition: any
         delay: 10s
         window: 5s
       placement:
         constraints:
-          - ${PROM_AGENT_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
       resources:
         limits:
-          memory: 512M
-        reservations:
           memory: 128M
+        reservations:
+          memory: 64M
     healthcheck:
       test: ['CMD', '/bin/sh', '-c', 'kill -0 1']
       interval: 15s
@@ -88,8 +86,8 @@ services:
       - |
         set -eu
 
-        if [ -z "$${EDGE_REMOTE_WRITE_URL:-}" ]; then
-          echo "EDGE_REMOTE_WRITE_URL is required"
+        if [ -z "$${METRICS_REMOTE_WRITE_URL:-}" ]; then
+          echo "METRICS_REMOTE_WRITE_URL is required"
           exit 1
         fi
 
@@ -134,10 +132,10 @@ services:
         fi
 
         VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS=""
-        if [ -n "$${EDGE_REMOTE_WRITE_BASIC_AUTH_USER:-}" ] && [ -n "$${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS:-}" ]; then
+        if [ -n "$${METRICS_REMOTE_WRITE_BASIC_AUTH_USER:-}" ] && [ -n "$${METRICS_REMOTE_WRITE_BASIC_AUTH_PASS:-}" ]; then
           VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS=" \
-          -remoteWrite.basicAuth.username=$${EDGE_REMOTE_WRITE_BASIC_AUTH_USER} \
-          -remoteWrite.basicAuth.password=$${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS}"
+          -remoteWrite.basicAuth.username=$${METRICS_REMOTE_WRITE_BASIC_AUTH_USER} \
+          -remoteWrite.basicAuth.password=$${METRICS_REMOTE_WRITE_BASIC_AUTH_PASS}"
         fi
 
         VMAGENT_REMOTE_WRITE_MAX_DISK_USAGE_ARGS=""
@@ -147,7 +145,7 @@ services:
 
         exec /vmagent-prod \
           -promscrape.config=/etc/vmagent/prometheus.yml \
-          -remoteWrite.url=$${EDGE_REMOTE_WRITE_URL} \
+          -remoteWrite.url=$${METRICS_REMOTE_WRITE_URL} \
           -remoteWrite.tmpDataPath=/vmagent-remotewrite-data \
           -httpListenAddr=:8429 \
           $${VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS} \
@@ -166,9 +164,9 @@ services:
       PROM_AGENT_SCRAPE_INTERVAL: ${PROM_AGENT_SCRAPE_INTERVAL:-15s}
       PROM_AGENT_EXTERNAL_LABELS: ${PROM_AGENT_EXTERNAL_LABELS:-}
       PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS: ${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}
-      EDGE_REMOTE_WRITE_URL: ${EDGE_REMOTE_WRITE_URL:?}
-      EDGE_REMOTE_WRITE_BASIC_AUTH_USER: ${EDGE_REMOTE_WRITE_BASIC_AUTH_USER:-}
-      EDGE_REMOTE_WRITE_BASIC_AUTH_PASS: ${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS:-}
+      METRICS_REMOTE_WRITE_URL: ${METRICS_REMOTE_WRITE_URL:?}
+      METRICS_REMOTE_WRITE_BASIC_AUTH_USER: ${METRICS_REMOTE_WRITE_BASIC_AUTH_USER:-}
+      METRICS_REMOTE_WRITE_BASIC_AUTH_PASS: ${METRICS_REMOTE_WRITE_BASIC_AUTH_PASS:-}
 
     # VOLUMES:
     volumes:
@@ -204,7 +202,7 @@ services:
           memory: 32M
       placement:
         constraints:
-          - ${NODE_EXPORTER_PLACEMENT_CONSTRAINT:-node.platform.os==linux}
+          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
     entrypoint:
       - '/bin/sh'
       - '-c'
@@ -277,12 +275,12 @@ services:
       mode: global
       resources:
         limits:
-          memory: 200M
+          memory: 128M
         reservations:
           memory: 64M
       placement:
         constraints:
-          - node.platform.os == linux
+          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
 
     # NETWORK:
     networks:
