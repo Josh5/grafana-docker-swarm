@@ -71,8 +71,9 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 10s
+        window: 5s
       placement:
         constraints:
           - ${MINIO_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
