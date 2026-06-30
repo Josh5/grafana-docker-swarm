@@ -1,5 +1,5 @@
 # ---------------
-# Prometheus Metrics Agent
+# Node Metrics Collection Agent
 #   Scrapes host/container metrics and forwards them to an upstream edge relay.
 #
 # ---------------
@@ -18,14 +18,15 @@
 #   #-  - TZ -
 #   #-    The timezone.
 #   TZ=Etc/UTC
+#   #-  - NODE_ENV -
+#   #-    Optional environment label attached to metrics when external labels
+#   #-    are not explicitly overridden.
+#   NODE_ENV=default
 #   #@ Storage
-#   #-  - PROM_AGENT_DATA_VOLUME -
-#   #-    Named volume used for the Prometheus data directory
-#   PROM_AGENT_DATA_VOLUME=prometheus-node-agent-data
-#   #@ Prometheus Config
-#   #-  - PROM_AGENT_RETENTION_TIME -
-#   #-    Local retention window (kept short to limit disk usage)
-#   PROM_AGENT_RETENTION_TIME=6h
+#   #-  - PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE -
+#   #-    Max on-disk queue size per remote_write URL, e.g. 1GB or 500MiB
+#   PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE=1GB
+#   #@ Scrape Config
 #   #-  - PROM_AGENT_SCRAPE_INTERVAL -
 #   #-    Scrape interval for node-exporter
 #   PROM_AGENT_SCRAPE_INTERVAL=15s
@@ -44,20 +45,12 @@
 #   #-    Edge relay remote_write URL, e.g.:
 #   #-      https://edge.example.com/api/v1/write
 #   EDGE_REMOTE_WRITE_URL=
-#   #-  - EDGE_REMOTE_WRITE_ENABLE_HTTP2 -
-#   #-    Enable HTTP/2 for remote_write
-#   EDGE_REMOTE_WRITE_ENABLE_HTTP2=true
 #   #-  - EDGE_REMOTE_WRITE_BASIC_AUTH_USER -
 #   #-    Optional username for edge relay basic auth
 #   EDGE_REMOTE_WRITE_BASIC_AUTH_USER=
 #   #-  - EDGE_REMOTE_WRITE_BASIC_AUTH_PASS -
 #   #-    Optional password for edge relay basic auth
 #   EDGE_REMOTE_WRITE_BASIC_AUTH_PASS=
-#   #-  - EDGE_REMOTE_WRITE_EXTRA_CONFIG -
-#   #-    Extra remote_write config (indented 4 spaces), e.g.:
-#   #-      queue_config:
-#   #-        max_samples_per_send: 10000
-#   EDGE_REMOTE_WRITE_EXTRA_CONFIG=
 # <config_end>
 #
 ---
@@ -66,12 +59,12 @@ networks:
     driver: overlay
     attachable: true
 volumes:
-  prometheus-node-agent-data:
-    name: ${PROM_AGENT_DATA_VOLUME:-prometheus-node-agent-data}
+  node-agent-data:
+    name: node-metrics-collection-agent-data
 
 services:
-  prometheus:
-    image: ghcr.io/prometheus/prometheus:v3.5.4 #>convert_sha256
+  vmagent:
+    image: victoriametrics/vmagent:v1.146.0 #>convert_sha256
     user: '65534:65534'
     deploy:
       mode: replicated
@@ -89,7 +82,7 @@ services:
         reservations:
           memory: 128M
     healthcheck:
-      test: ['CMD', 'pidof', 'prometheus']
+      test: ['CMD', '/bin/sh', '-c', 'kill -0 1']
       interval: 15s
       timeout: 10s
       retries: 5
@@ -104,22 +97,25 @@ services:
           exit 1
         fi
 
-        cat > /etc/prometheus/prometheus.yml <<EOF
+        mkdir -p /etc/vmagent
+
+        cat > /etc/vmagent/prometheus.yml <<EOF
         global:
           scrape_interval: $${PROM_AGENT_SCRAPE_INTERVAL:-15s}
           evaluation_interval: $${PROM_AGENT_EVAL_INTERVAL:-15s}
         EOF
 
         if [ -n "$${PROM_AGENT_EXTERNAL_LABELS:-}" ]; then
-          echo "  external_labels:" >> /etc/prometheus/prometheus.yml
-          printf "%s\n" "$${PROM_AGENT_EXTERNAL_LABELS}" >> /etc/prometheus/prometheus.yml
+          echo "  external_labels:" >> /etc/vmagent/prometheus.yml
+          printf "%s\n" "$${PROM_AGENT_EXTERNAL_LABELS}" >> /etc/vmagent/prometheus.yml
         else
-          echo "  external_labels:" >> /etc/prometheus/prometheus.yml
-          echo "    node_id: \"$${NODE_ID}\"" >> /etc/prometheus/prometheus.yml
-          echo "    node_name: \"$${NODE_NAME}\"" >> /etc/prometheus/prometheus.yml
+          echo "  external_labels:" >> /etc/vmagent/prometheus.yml
+          echo "    node_id: \"$${NODE_ID}\"" >> /etc/vmagent/prometheus.yml
+          echo "    node_name: \"$${NODE_NAME}\"" >> /etc/vmagent/prometheus.yml
+          echo "    node_env: \"$${NODE_ENV:-default}\"" >> /etc/vmagent/prometheus.yml
         fi
 
-        cat >> /etc/prometheus/prometheus.yml <<EOF
+        cat >> /etc/vmagent/prometheus.yml <<EOF
         scrape_configs:
           - job_name: node-exporter
             dns_sd_configs:
@@ -135,36 +131,34 @@ services:
               type: 'A'
               port: 8080
               refresh_interval: 60s
-          - job_name: prometheus
+          - job_name: vmagent
             static_configs:
-              - targets: ["localhost:9095"]
+              - targets: ["localhost:8429"]
         EOF
 
         if [ -n "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}" ]; then
-          printf "%s\n" "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS}" >> /etc/prometheus/prometheus.yml
+          printf "%s\n" "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS}" >> /etc/vmagent/prometheus.yml
         fi
 
-        echo "remote_write:" >> /etc/prometheus/prometheus.yml
-        echo "  - url: $${EDGE_REMOTE_WRITE_URL}" >> /etc/prometheus/prometheus.yml
-        if [ "$${EDGE_REMOTE_WRITE_ENABLE_HTTP2:-true}" = "true" ]; then
-          echo "    enable_http2: true" >> /etc/prometheus/prometheus.yml
-        fi
+        VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS=""
         if [ -n "$${EDGE_REMOTE_WRITE_BASIC_AUTH_USER:-}" ] && [ -n "$${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS:-}" ]; then
-          cat >> /etc/prometheus/prometheus.yml <<EOF
-            basic_auth:
-              username: $${EDGE_REMOTE_WRITE_BASIC_AUTH_USER}
-              password: $${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS}
-        EOF
-        fi
-        if [ -n "$${EDGE_REMOTE_WRITE_EXTRA_CONFIG:-}" ]; then
-          printf "%s\n" "$${EDGE_REMOTE_WRITE_EXTRA_CONFIG}" >> /etc/prometheus/prometheus.yml
+          VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS=" \
+          -remoteWrite.basicAuth.username=$${EDGE_REMOTE_WRITE_BASIC_AUTH_USER} \
+          -remoteWrite.basicAuth.password=$${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS}"
         fi
 
-        exec /bin/prometheus \
-          --config.file=/etc/prometheus/prometheus.yml \
-          --log.level=info \
-          --agent \
-          --storage.agent.path=/prometheus
+        VMAGENT_REMOTE_WRITE_MAX_DISK_USAGE_ARGS=""
+        if [ -n "$${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE:-}" ]; then
+          VMAGENT_REMOTE_WRITE_MAX_DISK_USAGE_ARGS=" -remoteWrite.maxDiskUsagePerURL=$${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE}"
+        fi
+
+        exec /vmagent-prod \
+          -promscrape.config=/etc/vmagent/prometheus.yml \
+          -remoteWrite.url=$${EDGE_REMOTE_WRITE_URL} \
+          -remoteWrite.tmpDataPath=/vmagent-remotewrite-data \
+          -httpListenAddr=:8429 \
+          $${VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS} \
+          $${VMAGENT_REMOTE_WRITE_MAX_DISK_USAGE_ARGS}
 
     # NETWORK:
     networks:
@@ -174,21 +168,21 @@ services:
       TZ: ${TZ:-Etc/UTC}
       NODE_ID: '{{.Node.ID}}'
       NODE_NAME: '{{.Node.Hostname}}'
+      NODE_ENV: ${NODE_ENV:-default}
+      PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE: ${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE:-1GB}
       PROM_AGENT_SCRAPE_INTERVAL: ${PROM_AGENT_SCRAPE_INTERVAL:-15s}
       PROM_AGENT_EVAL_INTERVAL: ${PROM_AGENT_EVAL_INTERVAL:-15s}
       PROM_AGENT_EXTERNAL_LABELS: ${PROM_AGENT_EXTERNAL_LABELS:-}
       PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS: ${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}
       EDGE_REMOTE_WRITE_URL: ${EDGE_REMOTE_WRITE_URL:?}
-      EDGE_REMOTE_WRITE_ENABLE_HTTP2: ${EDGE_REMOTE_WRITE_ENABLE_HTTP2:-true}
       EDGE_REMOTE_WRITE_BASIC_AUTH_USER: ${EDGE_REMOTE_WRITE_BASIC_AUTH_USER:-}
       EDGE_REMOTE_WRITE_BASIC_AUTH_PASS: ${EDGE_REMOTE_WRITE_BASIC_AUTH_PASS:-}
-      EDGE_REMOTE_WRITE_EXTRA_CONFIG: ${EDGE_REMOTE_WRITE_EXTRA_CONFIG:-}
 
     # VOLUMES:
     volumes:
       - type: volume
-        source: prometheus-node-agent-data
-        target: /prometheus
+        source: node-agent-data
+        target: /vmagent-remotewrite-data
 
   # -- Node exporter --
   #
