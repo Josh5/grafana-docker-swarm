@@ -97,25 +97,25 @@ services:
           exit 1
         fi
 
-        mkdir -p /etc/vmagent
+        mkdir -p /tmp/vmagent
 
-        cat > /etc/vmagent/prometheus.yml <<EOF
+        cat > /tmp/vmagent/prometheus.yml <<EOF
         global:
           scrape_interval: $${PROM_AGENT_SCRAPE_INTERVAL:-15s}
           evaluation_interval: $${PROM_AGENT_EVAL_INTERVAL:-15s}
         EOF
 
         if [ -n "$${PROM_AGENT_EXTERNAL_LABELS:-}" ]; then
-          echo "  external_labels:" >> /etc/vmagent/prometheus.yml
-          printf "%s\n" "$${PROM_AGENT_EXTERNAL_LABELS}" >> /etc/vmagent/prometheus.yml
+          echo "  external_labels:" >> /tmp/vmagent/prometheus.yml
+          printf "%s\n" "$${PROM_AGENT_EXTERNAL_LABELS}" >> /tmp/vmagent/prometheus.yml
         else
-          echo "  external_labels:" >> /etc/vmagent/prometheus.yml
-          echo "    node_id: \"$${NODE_ID}\"" >> /etc/vmagent/prometheus.yml
-          echo "    node_name: \"$${NODE_NAME}\"" >> /etc/vmagent/prometheus.yml
-          echo "    node_cluster: \"$${NODE_CLUSTER:-default}\"" >> /etc/vmagent/prometheus.yml
+          echo "  external_labels:" >> /tmp/vmagent/prometheus.yml
+          echo "    node_id: \"$${NODE_ID}\"" >> /tmp/vmagent/prometheus.yml
+          echo "    node_name: \"$${NODE_NAME}\"" >> /tmp/vmagent/prometheus.yml
+          echo "    node_cluster: \"$${NODE_CLUSTER:-default}\"" >> /tmp/vmagent/prometheus.yml
         fi
 
-        cat >> /etc/vmagent/prometheus.yml <<EOF
+        cat >> /tmp/vmagent/prometheus.yml <<EOF
         scrape_configs:
           - job_name: node-exporter
             dns_sd_configs:
@@ -137,7 +137,7 @@ services:
         EOF
 
         if [ -n "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}" ]; then
-          printf "%s\n" "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS}" >> /etc/vmagent/prometheus.yml
+          printf "%s\n" "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS}" >> /tmp/vmagent/prometheus.yml
         fi
 
         VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS=""
@@ -153,7 +153,7 @@ services:
         fi
 
         exec /vmagent-prod \
-          -promscrape.config=/etc/vmagent/prometheus.yml \
+          -promscrape.config=/tmp/vmagent/prometheus.yml \
           -remoteWrite.url=$${EDGE_REMOTE_WRITE_URL} \
           -remoteWrite.tmpDataPath=/vmagent-remotewrite-data \
           -httpListenAddr=:8429 \
