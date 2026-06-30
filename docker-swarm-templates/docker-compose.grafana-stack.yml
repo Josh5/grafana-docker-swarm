@@ -534,7 +534,7 @@ services:
   # time series database and modern alerting approach.
   #
   prometheus:
-    image: prom/prometheus:v3.0.1 #>convert_sha256
+    image: ghcr.io/prometheus/prometheus:v3.5.4 #>convert_sha256
     deploy:
       mode: replicated
       replicas: 1

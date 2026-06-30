@@ -108,7 +108,7 @@ networks:
 
 services:
   prometheus-edge-relay:
-    image: prom/prometheus:v3.0.1
+    image: ghcr.io/prometheus/prometheus:v3.5.4 #>convert_sha256
     user: '65534:65534'
     deploy:
       replicas: 1
@@ -193,8 +193,10 @@ services:
         exec /bin/prometheus \
           --config.file=/etc/prometheus/prometheus.yml \
           --log.level=info \
-          --storage.tsdb.path=/prometheus \
-          --storage.tsdb.retention.time=$${EDGE_PROM_RETENTION_TIME:-6h} \
+          --agent \
+          --storage.agent.path=/prometheus \
+          --storage.agent.retention.max-time=$${EDGE_PROM_RETENTION_TIME:-6h} \
+          --web.listen-address=0.0.0.0:9090 \
           --web.enable-remote-write-receiver \
           $${PROM_ADDITIONAL_EXEC_ARGS}
 

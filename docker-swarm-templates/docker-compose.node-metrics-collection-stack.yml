@@ -71,7 +71,7 @@ volumes:
 
 services:
   prometheus:
-    image: ghcr.io/prometheus/prometheus:v3.5.4
+    image: ghcr.io/prometheus/prometheus:v3.5.4 #>convert_sha256
     user: '65534:65534'
     deploy:
       mode: replicated
