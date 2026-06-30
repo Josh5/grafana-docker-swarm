@@ -26,9 +26,12 @@
 #   #-  - TRAEFIK_DOMAIN -
 #   #-    The Domiain where Grafana is accessed.
 #   TRAEFIK_DOMAIN=localhost:3000
+#   #-  - TRAEFIK_SCHEME -
+#   #-    The public URL scheme used by Traefik.
+#   TRAEFIK_SCHEME=http
 #   #-  - TRAEFIK_PATH_PREFIX_GRAFANA -
-#   #-    The prefix for accessing grafana
-#   TRAEFIK_PATH_PREFIX_GRAFANA=/dashboard
+#   #-    The optional prefix for accessing grafana. Leave empty to serve from TRAEFIK_DOMAIN.
+#   TRAEFIK_PATH_PREFIX_GRAFANA=/monitor
 #   #-  - TRAEFIK_PATH_PREFIX_PROMETHEUS -
 #   #-    The prefix for accessing prometheus' API
 #   TRAEFIK_PATH_PREFIX_PROMETHEUS=/prom
@@ -412,7 +415,7 @@ services:
         - 'traefik.http.services.grafana-stack.loadbalancer.server.port=3000'
         - 'traefik.http.routers.grafana-stack.entrypoints=web'
         # Configure router domain
-        - 'traefik.http.routers.grafana-stack.rule=Host(`${TRAEFIK_DOMAIN:?}`) && PathPrefix(`${TRAEFIK_PATH_PREFIX_GRAFANA:?}`)'
+        - 'traefik.http.routers.grafana-stack.rule=Host(`${TRAEFIK_DOMAIN:?}`) && PathPrefix(`${TRAEFIK_PATH_PREFIX_GRAFANA:-/}`)'
 
         #### -- Define homepage configuration
         - 'homepage.group=Observability'
@@ -420,7 +423,7 @@ services:
         - 'homepage.weight=1'
         - 'homepage.icon=https://avatars.githubusercontent.com/u/7195757?v=4'
         - 'homepage.description=Grafana is the open source analytics & monitoring solution for every database.'
-        - 'homepage.href=http://${TRAEFIK_DOMAIN:?}${TRAEFIK_PATH_PREFIX_GRAFANA:?}'
+        - 'homepage.href=${TRAEFIK_SCHEME:-http}://${TRAEFIK_DOMAIN:?}${TRAEFIK_PATH_PREFIX_GRAFANA:-}'
     entrypoint:
       - '/bin/bash'
       - '-c'
@@ -522,6 +525,13 @@ services:
         cat /etc/grafana/provisioning/datasources/provisioning-datasources.yaml
         echo
 
+        export GF_SERVER_ROOT_URL="$${TRAEFIK_SCHEME:-http}://$${TRAEFIK_DOMAIN:?}$${TRAEFIK_PATH_PREFIX_GRAFANA:-}"
+        if [ -n "$${TRAEFIK_PATH_PREFIX_GRAFANA:-}" ]; then
+          export GF_SERVER_SERVE_FROM_SUB_PATH="$${GF_SERVER_SERVE_FROM_SUB_PATH:-true}"
+        else
+          export GF_SERVER_SERVE_FROM_SUB_PATH="$${GF_SERVER_SERVE_FROM_SUB_PATH:-false}"
+        fi
+
         echo "### Running /run.sh ###"
         source /run.sh
 
@@ -537,10 +547,11 @@ services:
 
     # ENVIRONMENT:
     environment:
+      TRAEFIK_DOMAIN: ${TRAEFIK_DOMAIN:?}
+      TRAEFIK_SCHEME: ${TRAEFIK_SCHEME:-http}
+      TRAEFIK_PATH_PREFIX_GRAFANA: ${TRAEFIK_PATH_PREFIX_GRAFANA:-}
       TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
       GF_LOG_LEVEL: ${GF_LOG_LEVEL:-info}
-      GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
-      GF_SERVER_ROOT_URL: http://${TRAEFIK_DOMAIN:?}${TRAEFIK_PATH_PREFIX_GRAFANA:?}
       GF_USERS_ALLOW_SIGN_UP: ${GF_USERS_ALLOW_SIGN_UP:-false}
       GF_AUTH_SAML_ENABLED: ${GF_AUTH_SAML_ENABLED:-false}
       GF_AUTH_SAML_NAME: ${GF_AUTH_SAML_NAME:-}
