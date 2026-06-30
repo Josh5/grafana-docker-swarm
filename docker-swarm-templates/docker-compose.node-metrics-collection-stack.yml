@@ -71,7 +71,7 @@ volumes:
 
 services:
   prometheus:
-    image: prom/prometheus:v3.0.1
+    image: ghcr.io/prometheus/prometheus:v3.5.4
     user: '65534:65534'
     deploy:
       mode: replicated
@@ -136,7 +136,7 @@ services:
               refresh_interval: 60s
           - job_name: prometheus
             static_configs:
-              - targets: ["localhost:9090"]
+              - targets: ["localhost:9095"]
         EOF
 
         if [ -n "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}" ]; then
@@ -162,8 +162,8 @@ services:
         exec /bin/prometheus \
           --config.file=/etc/prometheus/prometheus.yml \
           --log.level=info \
-          --storage.tsdb.path=/prometheus \
-          --storage.tsdb.retention.time=$${PROM_AGENT_RETENTION_TIME:-6h}
+          --agent \
+          --storage.agent.path=/prometheus
 
     # NETWORK:
     networks:
