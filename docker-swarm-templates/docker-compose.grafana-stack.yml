@@ -536,6 +536,7 @@ services:
   # time series database and modern alerting approach.
   #
   prometheus:
+    # Prometheus releases: https://github.com/prometheus/prometheus/pkgs/container/prometheus/versions?filters%5Bversion_type%5D=tagged
     image: ghcr.io/prometheus/prometheus:v3.5.4 #>convert_sha256
     deploy:
       mode: replicated

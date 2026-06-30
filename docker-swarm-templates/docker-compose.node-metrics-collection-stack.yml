@@ -195,7 +195,8 @@ services:
   # Prometheus exporter for hardware and OS metrics exposed by *NIX kernels.
   #
   node-exporter:
-    image: prom/node-exporter:v1.8.2
+    # Releases: https://hub.docker.com/r/prom/node-exporter/tags
+    image: prom/node-exporter:v1.11.1 #>convert_sha256
     deploy:
       mode: global
       resources:
@@ -223,7 +224,6 @@ services:
         echo "/bin/node_exporter $${@}"
         exec /bin/node_exporter $${@}
     command:
-      - ''
       - '--no-collector.ipvs'
       - '--path.rootfs=/rootfs'
       - '--path.procfs=/host/proc'
