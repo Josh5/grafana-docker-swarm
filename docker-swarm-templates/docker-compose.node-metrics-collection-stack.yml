@@ -18,10 +18,10 @@
 #   #-  - TZ -
 #   #-    The timezone.
 #   TZ=Etc/UTC
-#   #-  - NODE_ENV -
-#   #-    Optional environment label attached to metrics when external labels
+#   #-  - NODE_CLUSTER -
+#   #-    Optional cluster label attached to metrics when external labels
 #   #-    are not explicitly overridden.
-#   NODE_ENV=default
+#   NODE_CLUSTER=default
 #   #@ Storage
 #   #-  - PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE -
 #   #-    Max on-disk queue size per remote_write URL, e.g. 1GB or 500MiB
@@ -112,7 +112,7 @@ services:
           echo "  external_labels:" >> /etc/vmagent/prometheus.yml
           echo "    node_id: \"$${NODE_ID}\"" >> /etc/vmagent/prometheus.yml
           echo "    node_name: \"$${NODE_NAME}\"" >> /etc/vmagent/prometheus.yml
-          echo "    node_env: \"$${NODE_ENV:-default}\"" >> /etc/vmagent/prometheus.yml
+          echo "    node_cluster: \"$${NODE_CLUSTER:-default}\"" >> /etc/vmagent/prometheus.yml
         fi
 
         cat >> /etc/vmagent/prometheus.yml <<EOF
@@ -168,7 +168,7 @@ services:
       TZ: ${TZ:-Etc/UTC}
       NODE_ID: '{{.Node.ID}}'
       NODE_NAME: '{{.Node.Hostname}}'
-      NODE_ENV: ${NODE_ENV:-default}
+      NODE_CLUSTER: ${NODE_CLUSTER:-default}
       PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE: ${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE:-1GB}
       PROM_AGENT_SCRAPE_INTERVAL: ${PROM_AGENT_SCRAPE_INTERVAL:-15s}
       PROM_AGENT_EVAL_INTERVAL: ${PROM_AGENT_EVAL_INTERVAL:-15s}
