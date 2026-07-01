@@ -1,0 +1,447 @@
+# ---------------
+# Node Metrics Collection Agent
+#   Runs one collector per node, scrapes local host/container metrics, and forwards them to an upstream
+#   metrics router or endpoint.
+#
+# ---------------
+# Config (paste into portainer advance env text input):
+#
+# <config_start>
+#   #@ Placement
+#   #-    Configure a placement constraint to where the container will be run.
+#   #-    Examples:
+#   #-        - node.hostname==<hostname>
+#   #-        - engine.labels.fs-access.<worker-hostname>.mnt==true
+#   #-        - node.role!=manager
+#   PLACEMENT_CONSTRAINT=node.platform.os==linux
+#   #@ Host Config
+#   #-  - TZ -
+#   #-    The timezone.
+#   TZ=Etc/UTC
+#   #-  - NODE_CLUSTER -
+#   #-    Optional cluster label attached to metrics when external labels
+#   #-    are not explicitly overridden.
+#   NODE_CLUSTER=default
+#   #-  - DOCKER_SOCKET_PATH -
+#   #-    Optional host path for the Docker socket mounted into vmagent.
+#   DOCKER_SOCKET_PATH=/var/run/docker.sock
+#   #@ Storage
+#   #-  - PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE -
+#   #-    Max on-disk queue size per remote_write URL, e.g. 1GB or 500MiB
+#   PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE=1GB
+#   #@ Scrape Config
+#   #-  - PROM_AGENT_SCRAPE_INTERVAL -
+#   #-    Scrape interval for node-exporter and cadvisor
+#   PROM_AGENT_SCRAPE_INTERVAL=15s
+#   #-  - PROM_AGENT_EXTERNAL_LABELS -
+#   #-    External labels block (indented 4 spaces), e.g.:
+#   #-      edge: "vps-1"
+#   PROM_AGENT_EXTERNAL_LABELS=
+#   #-  - PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS -
+#   #-    Additional scrape_configs entries (indented 2 spaces)
+#   PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS=
+#   #@ Remote Write (Metrics Router or Endpoint)
+#   #-  - METRICS_REMOTE_WRITE_URL -
+#   #-    Metrics router remote_write URL, e.g.:
+#   #-      https://router.example.com/api/v1/write
+#   METRICS_REMOTE_WRITE_URL=
+#   #-  - METRICS_REMOTE_WRITE_BASIC_AUTH_USER -
+#   #-    Optional username for metrics router basic auth
+#   METRICS_REMOTE_WRITE_BASIC_AUTH_USER=
+#   #-  - METRICS_REMOTE_WRITE_BASIC_AUTH_PASS -
+#   #-    Optional password for metrics router basic auth
+#   METRICS_REMOTE_WRITE_BASIC_AUTH_PASS=
+# <config_end>
+#
+volumes:
+  node-agent-data:
+    name: node-metrics-collection-agent-data
+
+services:
+  vmagent:
+    image: victoriametrics/vmagent@sha256:2c73a6acb0b0c91e0894158ba0e4d3615da43d6833655f27169933bd1161633e
+
+    healthcheck:
+      test: ['CMD', '/bin/sh', '-c', 'kill -0 1']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 5s
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+
+        if [ -z "$${METRICS_REMOTE_WRITE_URL:-}" ]; then
+          echo "METRICS_REMOTE_WRITE_URL is required"
+          exit 1
+        fi
+
+        NODE_NAME="$${NODE_NAME:-}"
+        NODE_ID="$${NODE_ID:-}"
+
+        if [ -z "$$NODE_NAME" ] || [ "$$NODE_NAME" = "{{.Node.Hostname}}" ]; then
+          NODE_NAME="$$(cat /etc/nodename)"
+        fi
+        if [ -z "$$NODE_ID" ] || [ "$$NODE_ID" = "{{.Node.ID}}" ]; then
+          NODE_ID="$$NODE_NAME"
+        fi
+        export NODE_NAME NODE_ID
+
+        mkdir -p /etc/vmagent
+
+        cat > /etc/vmagent/prometheus.yml <<EOF
+        global:
+          scrape_interval: $${PROM_AGENT_SCRAPE_INTERVAL:-15s}
+        EOF
+
+        if [ -n "$${PROM_AGENT_EXTERNAL_LABELS:-}" ]; then
+          echo "  external_labels:" >> /etc/vmagent/prometheus.yml
+          printf "%s\n" "$${PROM_AGENT_EXTERNAL_LABELS}" >> /etc/vmagent/prometheus.yml
+        else
+          echo "  external_labels:" >> /etc/vmagent/prometheus.yml
+          echo "    node_id: \"$${NODE_ID}\"" >> /etc/vmagent/prometheus.yml
+          echo "    node_name: \"$${NODE_NAME}\"" >> /etc/vmagent/prometheus.yml
+          echo "    node_cluster: \"$${NODE_CLUSTER:-default}\"" >> /etc/vmagent/prometheus.yml
+        fi
+
+        cat >> /etc/vmagent/prometheus.yml <<'EOF'
+        scrape_configs:
+          - job_name: node-exporter
+            docker_sd_configs:
+            - host: unix:///var/run/docker.sock
+              port: 9100
+            relabel_configs:
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: (.+_)?node-exporter
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: node-exporter
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__meta_docker_container_name]
+              regex: /.*node-exporter.*
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__tmp_exporter_match]
+              regex: "1"
+              action: keep
+            - source_labels: [__meta_docker_container_name]
+              regex: /.*node-exporter.*
+              target_label: container_runtime
+              replacement: docker
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: .+
+              target_label: container_runtime
+              replacement: compose
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: .+
+              target_label: container_runtime
+              replacement: swarm
+            # This stack expects exporters to run on Docker-managed bridge/overlay networks.
+            # Host-networked containers are intentionally ignored.
+            - source_labels: [__meta_docker_container_network_mode]
+              regex: host
+              action: drop
+            - source_labels: [__meta_docker_network_ingress]
+              regex: true
+              action: drop
+          - job_name: cadvisor
+            docker_sd_configs:
+            - host: unix:///var/run/docker.sock
+              port: 8080
+            relabel_configs:
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: (.+_)?cadvisor
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: cadvisor
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__meta_docker_container_name]
+              regex: /.*cadvisor.*
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__tmp_exporter_match]
+              regex: "1"
+              action: keep
+            - source_labels: [__meta_docker_container_name]
+              regex: /.*cadvisor.*
+              target_label: container_runtime
+              replacement: docker
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: .+
+              target_label: container_runtime
+              replacement: compose
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: .+
+              target_label: container_runtime
+              replacement: swarm
+            # This stack expects exporters to run on Docker-managed bridge/overlay networks.
+            # Host-networked containers are intentionally ignored.
+            - source_labels: [__meta_docker_container_network_mode]
+              regex: host
+              action: drop
+            - source_labels: [__meta_docker_network_ingress]
+              regex: true
+              action: drop
+            metric_relabel_configs:
+            - source_labels: [name]
+              regex: (.+)
+              target_label: container_name
+              replacement: $$1
+            - source_labels: [name]
+              regex: (.+)
+              target_label: workload_name
+              replacement: $$1
+            - source_labels: [container_label_com_docker_compose_project]
+              regex: (.+)
+              target_label: workload_group
+              replacement: $$1
+            - source_labels: [container_label_com_docker_compose_service]
+              regex: (.+)
+              target_label: workload_name
+              replacement: $$1
+            - source_labels: [container_label_com_docker_stack_namespace]
+              regex: (.+)
+              target_label: workload_group
+              replacement: $$1
+            - source_labels: [container_label_com_docker_swarm_service_name]
+              regex: (.+)
+              target_label: workload_name
+              replacement: $$1
+            - source_labels: [container_runtime]
+              regex: (.+)
+              target_label: container_runtime
+              replacement: $$1
+            - source_labels: [name]
+              regex: .+
+              target_label: container_runtime
+              replacement: docker
+            - source_labels: [container_label_com_docker_compose_service]
+              regex: .+
+              target_label: container_runtime
+              replacement: compose
+            - source_labels: [container_label_com_docker_swarm_service_name]
+              regex: .+
+              target_label: container_runtime
+              replacement: swarm
+          - job_name: vmagent
+            static_configs:
+              - targets: ["localhost:8429"]
+        EOF
+
+        if [ -n "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}" ]; then
+          printf "%s\n" "$${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS}" >> /etc/vmagent/prometheus.yml
+        fi
+
+        VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS=""
+        if [ -n "$${METRICS_REMOTE_WRITE_BASIC_AUTH_USER:-}" ] && [ -n "$${METRICS_REMOTE_WRITE_BASIC_AUTH_PASS:-}" ]; then
+          VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS=" \
+          -remoteWrite.basicAuth.username=$${METRICS_REMOTE_WRITE_BASIC_AUTH_USER} \
+          -remoteWrite.basicAuth.password=$${METRICS_REMOTE_WRITE_BASIC_AUTH_PASS}"
+        fi
+
+        VMAGENT_REMOTE_WRITE_MAX_DISK_USAGE_ARGS=""
+        if [ -n "$${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE:-}" ]; then
+          VMAGENT_REMOTE_WRITE_MAX_DISK_USAGE_ARGS=" -remoteWrite.maxDiskUsagePerURL=$${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE}"
+        fi
+
+        exec /vmagent-prod \
+          -promscrape.config=/etc/vmagent/prometheus.yml \
+          -promscrape.dockerSDCheckInterval=60s \
+          -remoteWrite.url=$${METRICS_REMOTE_WRITE_URL} \
+          -remoteWrite.tmpDataPath=/vmagent-remotewrite-data \
+          -httpListenAddr=:8429 \
+          $${VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS} \
+          $${VMAGENT_REMOTE_WRITE_MAX_DISK_USAGE_ARGS}
+
+    # ENVIRONMENT:
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      NODE_ID: '{{.Node.ID}}'
+      NODE_NAME: '{{.Node.Hostname}}'
+      NODE_CLUSTER: ${NODE_CLUSTER:-default}
+      PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE: ${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE:-1GB}
+      PROM_AGENT_SCRAPE_INTERVAL: ${PROM_AGENT_SCRAPE_INTERVAL:-15s}
+      PROM_AGENT_EXTERNAL_LABELS: ${PROM_AGENT_EXTERNAL_LABELS:-}
+      PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS: ${PROM_AGENT_ADDITIONAL_SCRAPE_CONFIGS:-}
+      METRICS_REMOTE_WRITE_URL: ${METRICS_REMOTE_WRITE_URL:?}
+      METRICS_REMOTE_WRITE_BASIC_AUTH_USER: ${METRICS_REMOTE_WRITE_BASIC_AUTH_USER:-}
+      METRICS_REMOTE_WRITE_BASIC_AUTH_PASS: ${METRICS_REMOTE_WRITE_BASIC_AUTH_PASS:-}
+
+    # VOLUMES:
+    volumes:
+      - type: volume
+        source: node-agent-data
+        target: /vmagent-remotewrite-data
+      - type: bind
+        source: ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}
+        target: /var/run/docker.sock
+        read_only: true
+      - type: bind
+        source: /etc/hostname
+        target: /etc/nodename
+        read_only: true
+
+  # -- Node exporter --
+  #
+  # Prometheus exporter for hardware and OS metrics exposed by *NIX kernels.
+  #
+  node-exporter:
+    # Releases: https://hub.docker.com/r/prom/node-exporter/tags
+    image: prom/node-exporter@sha256:e9cff4fc67b1818f8c97adb115b9f12c9a54b533de86765d4a0effc01b357205
+
+    healthcheck:
+      test:
+        [
+          'CMD',
+          '/bin/sh',
+          '-c',
+          'wget --quiet --tries=1 --spider http://localhost:9100/ || exit 1',
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 5s
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+
+    entrypoint:
+      - '/bin/sh'
+      - '-c'
+      - |
+        set -e
+
+        echo "Setting configuration..."
+        NODE_NAME=$$(cat /etc/nodename)
+        NODE_ID=$${NODE_ID:-$${NODE_NAME}}
+        if [ -z "$$NODE_ID" ] || [ "$$NODE_ID" = "{{.Node.ID}}" ]; then
+          NODE_ID="$$NODE_NAME"
+        fi
+        mkdir -p /tmp/node-exporter
+        echo "node_meta{node_id=\"$$NODE_ID\", node_name=\"$$NODE_NAME\"} 1" > /tmp/node-exporter/node-meta.prom
+        echo
+
+        echo "### Running node-exporter ###"
+        echo "/bin/node_exporter $${@}"
+        exec /bin/node_exporter $${@}
+    command:
+      - '--no-collector.ipvs'
+      - '--path.rootfs=/rootfs'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.textfile.directory=/tmp/node-exporter/'
+      - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+|run/credentials/.+)($$|/)'
+
+    # ENVIRONMENT:
+    environment:
+      - NODE_ID={{.Node.ID}}
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+      - type: bind
+        source: /proc
+        target: /host/proc
+        read_only: true
+      - type: bind
+        source: /sys
+        target: /host/sys
+        read_only: true
+      - type: bind
+        source: /etc/hostname
+        target: /etc/nodename
+        read_only: true
+
+  # -- cAdvisor (Container Advisor)  --
+  #
+  # Provides container users an understanding of the resource usage and performance characteristics of their
+  # running containers.
+  #
+  cadvisor:
+    # cAdvisor Releases: https://github.com/google/cadvisor/pkgs/container/cadvisor/versions?filters%5Bversion_type%5D=tagged
+    image: ghcr.io/google/cadvisor@sha256:c4c44a8d178a1f3985d4aec9f0876a313cc7833ee07fe1d0d8ec63707ef7d69f
+
+    # NOTE: The cadvisor already defines a healthcheck. No point specifying it here incase they change it again.
+    # healthcheck:
+    #   ...
+
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 5s
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+    command:
+      - -logtostderr
+      - -docker_only
+      - -housekeeping_interval=15s
+      - -max_housekeeping_interval=60s
+      - -allow_dynamic_housekeeping=true
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+      - type: bind
+        source: /var/run
+        target: /var/run
+        read_only: true
+      - type: bind
+        source: /sys
+        target: /sys
+        read_only: true
+      - type: bind
+        source: /var/lib/docker
+        target: /var/lib/docker
+        read_only: true
+      - type: bind
+        source: /dev
+        target: /dev
+        read_only: true
