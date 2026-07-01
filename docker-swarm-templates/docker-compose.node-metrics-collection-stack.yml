@@ -60,25 +60,28 @@ volumes:
 services:
   vmagent:
     image: victoriametrics/vmagent:v1.146.0 #>convert_sha256
-    deploy:
-      mode: global
-      restart_policy:
-        condition: any
-        delay: 10s
-        window: 5s
-      placement:
-        constraints:
-          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
-      resources:
-        limits:
-          memory: 128M
-        reservations:
-          memory: 64M
+
     healthcheck:
       test: ['CMD', '/bin/sh', '-c', 'kill -0 1']
       interval: 15s
       timeout: 10s
       retries: 5
+
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 5s
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
     entrypoint:
       - /bin/sh
       - -c
@@ -118,7 +121,7 @@ services:
           echo "    node_cluster: \"$${NODE_CLUSTER:-default}\"" >> /etc/vmagent/prometheus.yml
         fi
 
-        cat >> /etc/vmagent/prometheus.yml <<EOF
+        cat >> /etc/vmagent/prometheus.yml <<'EOF'
         scrape_configs:
           - job_name: node-exporter
             docker_sd_configs:
@@ -127,7 +130,31 @@ services:
             relabel_configs:
             - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
               regex: (.+_)?node-exporter
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: node-exporter
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__meta_docker_container_name]
+              regex: /.*node-exporter.*
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__tmp_exporter_match]
+              regex: "1"
               action: keep
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: .+
+              target_label: container_runtime
+              replacement: swarm
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: .+
+              target_label: container_runtime
+              replacement: compose
+            - source_labels: [__meta_docker_container_name]
+              regex: /.*node-exporter.*
+              target_label: container_runtime
+              replacement: docker
             # This stack expects exporters to run on Docker-managed bridge/overlay networks.
             # Host-networked containers are intentionally ignored.
             - source_labels: [__meta_docker_container_network_mode]
@@ -143,7 +170,31 @@ services:
             relabel_configs:
             - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
               regex: (.+_)?cadvisor
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: cadvisor
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__meta_docker_container_name]
+              regex: /.*cadvisor.*
+              target_label: __tmp_exporter_match
+              replacement: "1"
+            - source_labels: [__tmp_exporter_match]
+              regex: "1"
               action: keep
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: .+
+              target_label: container_runtime
+              replacement: swarm
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: .+
+              target_label: container_runtime
+              replacement: compose
+            - source_labels: [__meta_docker_container_name]
+              regex: /.*cadvisor.*
+              target_label: container_runtime
+              replacement: docker
             # This stack expects exporters to run on Docker-managed bridge/overlay networks.
             # Host-networked containers are intentionally ignored.
             - source_labels: [__meta_docker_container_network_mode]
@@ -152,6 +203,47 @@ services:
             - source_labels: [__meta_docker_network_ingress]
               regex: true
               action: drop
+            metric_relabel_configs:
+            - source_labels: [name]
+              regex: (.+)
+              target_label: container_name
+              replacement: $$1
+            - source_labels: [name]
+              regex: (.+)
+              target_label: workload_name
+              replacement: $$1
+            - source_labels: [container_label_com_docker_compose_project]
+              regex: (.+)
+              target_label: workload_group
+              replacement: $$1
+            - source_labels: [container_label_com_docker_compose_service]
+              regex: (.+)
+              target_label: workload_name
+              replacement: $$1
+            - source_labels: [container_label_com_docker_stack_namespace]
+              regex: (.+)
+              target_label: workload_group
+              replacement: $$1
+            - source_labels: [container_label_com_docker_swarm_service_name]
+              regex: (.+)
+              target_label: workload_name
+              replacement: $$1
+            - source_labels: [container_runtime]
+              regex: (.+)
+              target_label: container_runtime
+              replacement: $$1
+            - source_labels: [container_label_com_docker_swarm_service_name]
+              regex: .+
+              target_label: container_runtime
+              replacement: swarm
+            - source_labels: [container_label_com_docker_compose_service]
+              regex: .+
+              target_label: container_runtime
+              replacement: compose
+            - source_labels: [name]
+              regex: .+
+              target_label: container_runtime
+              replacement: docker
           - job_name: vmagent
             static_configs:
               - targets: ["localhost:8429"]
@@ -217,6 +309,7 @@ services:
   node-exporter:
     # Releases: https://hub.docker.com/r/prom/node-exporter/tags
     image: prom/node-exporter:v1.11.1 #>convert_sha256
+
     healthcheck:
       test:
         [
@@ -229,16 +322,22 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
+
     deploy:
       mode: global
+      placement:
+        constraints:
+          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 5s
       resources:
         limits:
           memory: 64M
         reservations:
           memory: 32M
-      placement:
-        constraints:
-          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
+
     entrypoint:
       - '/bin/sh'
       - '-c'
@@ -248,6 +347,9 @@ services:
         echo "Setting configuration..."
         NODE_NAME=$$(cat /etc/nodename)
         NODE_ID=$${NODE_ID:-$${NODE_NAME}}
+        if [ -z "$$NODE_ID" ] || [ "$$NODE_ID" = "{{.Node.ID}}" ]; then
+          NODE_ID="$$NODE_NAME"
+        fi
         mkdir -p /tmp/node-exporter
         echo "node_meta{node_id=\"$$NODE_ID\", node_name=\"$$NODE_NAME\"} 1" > /tmp/node-exporter/node-meta.prom
         echo
@@ -294,25 +396,32 @@ services:
   cadvisor:
     # cAdvisor Releases: https://github.com/google/cadvisor/pkgs/container/cadvisor/versions?filters%5Bversion_type%5D=tagged
     image: ghcr.io/google/cadvisor:v0.60.3 #>convert_sha256
+
+    # NOTE: The cadvisor already defines a healthcheck. No point specifying it here incase they change it again.
+    # healthcheck:
+    #   ...
+
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 5s
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
     command:
       - -logtostderr
       - -docker_only
       - -housekeeping_interval=15s
       - -max_housekeeping_interval=60s
       - -allow_dynamic_housekeeping=true
-    # NOTE: The cadvisor already defines a healthcheck. No point specifying it here incase they change it again.
-    # healthcheck:
-    #   ...
-    deploy:
-      mode: global
-      resources:
-        limits:
-          memory: 128M
-        reservations:
-          memory: 64M
-      placement:
-        constraints:
-          - ${PLACEMENT_CONSTRAINT:-node.platform.os==linux}
 
     # VOLUMES:
     volumes:
