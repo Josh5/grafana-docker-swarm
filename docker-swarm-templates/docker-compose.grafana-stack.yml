@@ -395,7 +395,20 @@ services:
   # Grafana is the open source analytics & monitoring solution for every database.
   #
   grafana:
-    image: grafana/grafana:11.6.1 #>convert_sha256
+    # Releases:
+    #   - https://endoflife.date/grafana
+    #   - https://github.com/grafana/grafana/releases
+    #   - https://hub.docker.com/r/grafana/grafana/tags
+    #
+    # WARNING!! LIFECYCLE & UPGRADE PROTOCOL:
+    #   - Maintenance: Standard releases get 9 months of patches. Final major branches get 15 months.
+    #   - Strategy: When migrating, always upgrade sequentially to the final patch version of your
+    #     current major release line (the End-of-Life target) before jumping across to the next major version.
+    #   - Stability: Let new major releases bake for 3-6 months until stable patch levels (e.g., .4 or .5)
+    #     are reached before bringing them into production environments.
+    #   - Review the grafana releases URL above for details on the latest version for the major release we are on.
+    #
+    image: grafana/grafana:12.4.5 #>convert_sha256
     deploy:
       mode: replicated
       replicas: 1
@@ -841,7 +854,8 @@ services:
   # Handles alerts sent by client applications such as the Prometheus server.
   #
   alertmanager:
-    image: prom/alertmanager:v0.23.0 #>convert_sha256
+    # Releases: https://hub.docker.com/r/prom/alertmanager/tags
+    image: prom/alertmanager:v0.33.0 #>convert_sha256
     deploy:
       replicas: 1
       restart_policy:
