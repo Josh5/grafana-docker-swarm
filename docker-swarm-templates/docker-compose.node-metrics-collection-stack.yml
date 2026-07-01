@@ -143,18 +143,18 @@ services:
             - source_labels: [__tmp_exporter_match]
               regex: "1"
               action: keep
-            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
-              regex: .+
-              target_label: container_runtime
-              replacement: swarm
-            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
-              regex: .+
-              target_label: container_runtime
-              replacement: compose
             - source_labels: [__meta_docker_container_name]
               regex: /.*node-exporter.*
               target_label: container_runtime
               replacement: docker
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: .+
+              target_label: container_runtime
+              replacement: compose
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: .+
+              target_label: container_runtime
+              replacement: swarm
             # This stack expects exporters to run on Docker-managed bridge/overlay networks.
             # Host-networked containers are intentionally ignored.
             - source_labels: [__meta_docker_container_network_mode]
@@ -183,18 +183,18 @@ services:
             - source_labels: [__tmp_exporter_match]
               regex: "1"
               action: keep
-            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
-              regex: .+
-              target_label: container_runtime
-              replacement: swarm
-            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
-              regex: .+
-              target_label: container_runtime
-              replacement: compose
             - source_labels: [__meta_docker_container_name]
               regex: /.*cadvisor.*
               target_label: container_runtime
               replacement: docker
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              regex: .+
+              target_label: container_runtime
+              replacement: compose
+            - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+              regex: .+
+              target_label: container_runtime
+              replacement: swarm
             # This stack expects exporters to run on Docker-managed bridge/overlay networks.
             # Host-networked containers are intentionally ignored.
             - source_labels: [__meta_docker_container_network_mode]
@@ -232,18 +232,18 @@ services:
               regex: (.+)
               target_label: container_runtime
               replacement: $$1
-            - source_labels: [container_label_com_docker_swarm_service_name]
-              regex: .+
-              target_label: container_runtime
-              replacement: swarm
-            - source_labels: [container_label_com_docker_compose_service]
-              regex: .+
-              target_label: container_runtime
-              replacement: compose
             - source_labels: [name]
               regex: .+
               target_label: container_runtime
               replacement: docker
+            - source_labels: [container_label_com_docker_compose_service]
+              regex: .+
+              target_label: container_runtime
+              replacement: compose
+            - source_labels: [container_label_com_docker_swarm_service_name]
+              regex: .+
+              target_label: container_runtime
+              replacement: swarm
           - job_name: vmagent
             static_configs:
               - targets: ["localhost:8429"]
