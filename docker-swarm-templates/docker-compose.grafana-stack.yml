@@ -332,7 +332,7 @@ x-service-defaults:
           alertmanager_url: http://localhost:9093
 
         compactor:
-          working_directory: /tmp/compactor
+          working_directory: /loki/compactor
           retention_enabled: true 
           delete_request_store: $${loki_object_store:?}
 
