@@ -127,6 +127,19 @@
 #   #-    Useful for delayed/replayed logs from stalled agents.
 #   #-    This is not retention.
 #   LOKI_REJECT_OLD_SAMPLES_MAX_AGE=7d
+#   #-  - LOKI_MAX_CHUNK_AGE -
+#   #-    Maximum time an ingester keeps a log chunk open; this is not retention.
+#   #-    Loki accepts an out-of-order log only if it is within half this value of
+#   #-    the newest entry in the same label stream. The 2h default allows a 1h
+#   #-    window; 4h allows 2h, and 24h allows 12h.
+#   #-    A rejected entry produces a log line like:
+#   #-      entry with timestamp <timestamp> ignored, reason: 'entry too far behind,
+#   #-      entry timestamp is: <timestamp>, oldest acceptable timestamp is: <timestamp>'
+#   #-    Larger values retain more unflushed chunks in ingester memory and require
+#   #-    querying ingesters over the same longer window, which can increase memory
+#   #-    use, query load, and query latency. Prefer fixing delayed log delivery or
+#   #-    separating independent sources into stable-label streams before increasing it.
+#   LOKI_MAX_CHUNK_AGE=2h
 #   #-  - LOKI_RETENTION_PERIOD -
 #   #-    How long Loki keeps stored logs before retention cleanup.
 #   #-    Requires compactor.retention_enabled=true.
@@ -175,7 +188,7 @@ x-service-defaults:
   loki: &loki_service_defaults
     # Releases:
     #   https://github.com/grafana/loki/releases
-    image: grafana/loki:3.2.1 #>convert_sha256
+    image: grafana/loki:3.2.2 #>convert_sha256
     deploy:
       replicas: 1
       restart_policy:
@@ -297,14 +310,13 @@ x-service-defaults:
           enabled: false
 
         ingester:
-          max_chunk_age: 2h
+          max_chunk_age: $${MAX_CHUNK_AGE:-2h}
           chunk_retain_period: 1m
           chunk_encoding: gzip
 
         querier:
-          # Default is 4, if you have enough memory and CPU you can increase, reduce if OOMing
           max_concurrent: 4
-          query_ingesters_within: 2h
+          query_ingesters_within: $${MAX_CHUNK_AGE:-2h}
 
         limits_config:
           reject_old_samples: true
@@ -387,6 +399,7 @@ x-service-defaults:
       GRPC_SERVER_MAX_RECV_MSG_SIZE: ${LOKI_GRPC_SERVER_MAX_RECV_MSG_SIZE:-20971520}
       GRPC_SERVER_MAX_SEND_MSG_SIZE: ${LOKI_GRPC_SERVER_MAX_SEND_MSG_SIZE:-20971520}
       REJECT_OLD_SAMPLES_MAX_AGE: ${LOKI_REJECT_OLD_SAMPLES_MAX_AGE:-7d}
+      MAX_CHUNK_AGE: ${LOKI_MAX_CHUNK_AGE:-2h}
       RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-90d}
 
 services:
