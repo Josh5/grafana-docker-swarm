@@ -164,6 +164,7 @@ services:
               regex: true
               action: drop
           - job_name: cadvisor
+            max_scrape_size: 64MB
             docker_sd_configs:
             - host: unix:///var/run/docker.sock
               port: 8080
@@ -267,6 +268,7 @@ services:
 
         exec /vmagent-prod \
           -promscrape.config=/etc/vmagent/prometheus.yml \
+          -promscrape.maxScrapeSize=64MB \
           -promscrape.dockerSDCheckInterval=60s \
           -remoteWrite.url=$${METRICS_REMOTE_WRITE_URL} \
           -remoteWrite.tmpDataPath=/vmagent-remotewrite-data \
