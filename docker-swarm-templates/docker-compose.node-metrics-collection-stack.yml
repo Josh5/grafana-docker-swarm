@@ -25,6 +25,11 @@
 #   #-  - DOCKER_SOCKET_PATH -
 #   #-    Optional host path for the Docker socket mounted into vmagent.
 #   DOCKER_SOCKET_PATH=/var/run/docker.sock
+#   #@ Resources
+#   #-  - PROM_AGENT_CPU_LIMIT -
+#   #-    vmagent CPU quota in cores. 0.50 caps usage at half a CPU's worth of runtime.
+#   #-    Increase if scrapes fall behind or the remote_write backlog cannot drain.
+#   PROM_AGENT_CPU_LIMIT=0.50
 #   #@ Storage
 #   #-  - PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE -
 #   #-    Max on-disk queue size per remote_write URL, e.g. 1GB or 500MiB
@@ -45,6 +50,10 @@
 #   #-    Metrics router remote_write URL, e.g.:
 #   #-      https://router.example.com/api/v1/write
 #   METRICS_REMOTE_WRITE_URL=
+#   #-  - PROM_AGENT_REMOTE_WRITE_FORCE_PROM_PROTO -
+#   #-    Force Prometheus remote_write protocol (Snappy) for Prometheus receivers.
+#   #-    Set false to allow automatic protocol selection for VictoriaMetrics receivers.
+#   PROM_AGENT_REMOTE_WRITE_FORCE_PROM_PROTO=true
 #   #-  - METRICS_REMOTE_WRITE_BASIC_AUTH_USER -
 #   #-    Optional username for metrics router basic auth
 #   METRICS_REMOTE_WRITE_BASIC_AUTH_USER=
@@ -78,6 +87,7 @@ services:
         window: 5s
       resources:
         limits:
+          cpus: '${PROM_AGENT_CPU_LIMIT:-0.50}'
           memory: 128M
         reservations:
           memory: 64M
@@ -271,6 +281,7 @@ services:
           -promscrape.maxScrapeSize=64MB \
           -promscrape.dockerSDCheckInterval=60s \
           -remoteWrite.url=$${METRICS_REMOTE_WRITE_URL} \
+          -remoteWrite.forcePromProto=$${PROM_AGENT_REMOTE_WRITE_FORCE_PROM_PROTO:-true} \
           -remoteWrite.tmpDataPath=/vmagent-remotewrite-data \
           -httpListenAddr=:8429 \
           $${VMAGENT_REMOTE_WRITE_BASIC_AUTH_ARGS} \
@@ -282,6 +293,7 @@ services:
       NODE_ID: '{{.Node.ID}}'
       NODE_NAME: '{{.Node.Hostname}}'
       NODE_CLUSTER: ${NODE_CLUSTER:-default}
+      PROM_AGENT_REMOTE_WRITE_FORCE_PROM_PROTO: ${PROM_AGENT_REMOTE_WRITE_FORCE_PROM_PROTO:-true}
       PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE: ${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE:-1GB}
       PROM_AGENT_SCRAPE_INTERVAL: ${PROM_AGENT_SCRAPE_INTERVAL:-15s}
       PROM_AGENT_EXTERNAL_LABELS: ${PROM_AGENT_EXTERNAL_LABELS:-}
