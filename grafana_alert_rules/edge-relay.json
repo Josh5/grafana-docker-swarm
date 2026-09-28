@@ -1,0 +1,493 @@
+{
+    "apiVersion": 1,
+    "groups": [
+        {
+            "orgId": 1,
+            "name": "Metrics Delivery - Edge Relay",
+            "folder": "Infrastructure",
+            "interval": "1m",
+            "rules": [
+                {
+                    "uid": "edge-metrics-ingestion-stopped",
+                    "title": "Edge relay: central node metrics ingestion stopped",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "sum(count_over_time(node_time_seconds{node_name!=\"\"}[5m])) or vector(0)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                1
+                                            ],
+                                            "type": "lt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "Alerting",
+                    "execErrState": "Alerting",
+                    "for": "5m",
+                    "annotations": {
+                        "summary": "Edge relay: central metrics ingestion stopped",
+                        "description": "Central Prometheus has received no fresh node-exporter time samples from any monitored node for five minutes, and this condition persisted for another five minutes. This checks samples present at the final receiver, not the collectors' local collection counters. Check relay readiness and upstream connectivity. Per-node delivery alerts identify partial failures."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "critical",
+                        "component": "edge-relay"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "edge-metrics-telemetry-missing",
+                    "title": "Edge relay: forwarding telemetry missing",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "absent_over_time(prometheus_remote_storage_queue_highest_sent_timestamp_seconds[5m]) or vector(0)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                0
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "Alerting",
+                    "execErrState": "Alerting",
+                    "for": "5m",
+                    "annotations": {
+                        "summary": "No edge-relay forwarding telemetry is reaching central Prometheus.",
+                        "description": "No relay highest-sent timestamp was received for five minutes, persisting for another five minutes. Check relay availability, self-scrape authentication and unique external labels. This detects the complete loss of forwarding telemetry; individual node-delivery checks remain essential for partial failures."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "warning",
+                        "component": "edge-relay"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "edge-metrics-delivery-lag",
+                    "title": "Edge relay: upstream delivery more than five minutes behind",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "time() - prometheus_remote_storage_queue_highest_sent_timestamp_seconds",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                300
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "5m",
+                    "annotations": {
+                        "summary": "Edge relay: upstream delivery more than five minutes behind",
+                        "description": "The relay's highest successfully sent sample timestamp is more than five minutes behind. Check pending samples, retries and upstream availability. Requires the relay self-scrape to be delivered with unique external labels."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "warning",
+                        "component": "edge-relay"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "edge-metrics-forwarding-errors",
+                    "title": "Edge relay: repeated upstream forwarding errors",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "loki",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"prometheus-edge-relay(_prometheus-edge-relay)?\"} |~ `Failed to send batch|Failed to send metadata|error sending samples` [10m])) or vector(0)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "queryType": "instant"
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                2
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "2m",
+                    "annotations": {
+                        "summary": "Edge relay on {{ $labels.source_hostname }} is repeatedly failing to forward metrics.",
+                        "description": "At least three remote-write failures occurred in ten minutes. Loki evaluates independently of the metrics forwarding path. Check upstream HTTP status, connectivity and receiver availability."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "warning",
+                        "component": "edge-relay"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "edge-metrics-samples-rejected",
+                    "title": "Edge relay: upstream rejected buffered metrics",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "loki",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"prometheus-edge-relay(_prometheus-edge-relay)?\"} |~ `non-recoverable error|out of order sample|out of bounds|too old sample` [10m])) or vector(0)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "queryType": "instant"
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                0
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "0s",
+                    "annotations": {
+                        "summary": "Edge relay on {{ $labels.source_hostname }} reported an upstream rejection.",
+                        "description": "A non-recoverable write failure or sample rejection occurred in the last ten minutes. Inspect failedSampleCount and receiver logs; queue drainage alone does not establish successful delivery."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "critical",
+                        "component": "edge-relay"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "edge-metrics-restart-loop",
+                    "title": "Edge relay: repeated startup and WAL recovery",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "loki",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"prometheus-edge-relay(_prometheus-edge-relay)?\"} |~ `Starting Prometheus (Agent|Server)` [15m])) or vector(0)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "queryType": "instant"
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                1
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "0s",
+                    "annotations": {
+                        "summary": "Edge relay on {{ $labels.source_hostname }} has started repeatedly.",
+                        "description": "At least two Prometheus startups occurred in fifteen minutes. Inspect Docker task history and OOM events. WAL segment loaded messages are normal during one recovery and do not trigger this rule."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "critical",
+                        "component": "edge-relay"
+                    },
+                    "isPaused": false
+                }
+            ]
+        }
+    ]
+}

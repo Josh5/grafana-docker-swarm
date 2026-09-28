@@ -1,0 +1,653 @@
+{
+    "apiVersion": 1,
+    "groups": [
+        {
+            "orgId": 1,
+            "name": "Metrics Delivery - Collection Stacks",
+            "folder": "Infrastructure",
+            "interval": "1m",
+            "rules": [
+                {
+                    "uid": "collection-node-exporter-missing",
+                    "title": "Collection stacks: node-exporter metrics delivery missing",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "max by (node_name) (present_over_time(node_time_seconds{job=\"node-exporter\", node_name!=\"\"}[5m]))\nor 0 * max by (node_name) (max_over_time(up{job=\"node-exporter\", node_name!=\"\"}[7d]))\nor 0 * max by (node_name) (node_metrics_expected{node_name!=\"\"} == 1)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                1
+                                            ],
+                                            "type": "lt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "Alerting",
+                    "execErrState": "Alerting",
+                    "for": "5m",
+                    "annotations": {
+                        "summary": "No fresh node-exporter metrics received from {{ $labels.node_name }}.",
+                        "description": "Central Prometheus has received no fresh node-exporter metrics from this node for five minutes, persisting for another five minutes. Nodes are discovered from seven days of scrape-status history, with an optional independent node_metrics_expected inventory for longer outages. Check collector, relay and upstream delivery."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "critical",
+                        "component": "node-metrics-collection"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "collection-cadvisor-missing",
+                    "title": "Collection stacks: cadvisor metrics delivery missing",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "max by (node_name) (present_over_time(container_last_seen{job=\"cadvisor\", node_name!=\"\"}[5m]))\nor 0 * max by (node_name) (max_over_time(up{job=\"cadvisor\", node_name!=\"\"}[7d]))\nor 0 * max by (node_name) (node_metrics_expected{node_name!=\"\"} == 1)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                1
+                                            ],
+                                            "type": "lt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "Alerting",
+                    "execErrState": "Alerting",
+                    "for": "5m",
+                    "annotations": {
+                        "summary": "No fresh cadvisor metrics received from {{ $labels.node_name }}.",
+                        "description": "Central Prometheus has received no fresh cadvisor metrics from this node for five minutes, persisting for another five minutes. Nodes are discovered from seven days of scrape-status history, with an optional independent node_metrics_expected inventory for longer outages. Check collector, relay and upstream delivery."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "critical",
+                        "component": "node-metrics-collection"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "collection-vmagent-missing",
+                    "title": "Collection stacks: vmagent metrics delivery missing",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "max by (node_name) (present_over_time(vm_promscrape_scraped_samples_sum{job=\"vmagent\", node_name!=\"\"}[5m]))\nor 0 * max by (node_name) (max_over_time(up{job=\"vmagent\", node_name!=\"\"}[7d]))\nor 0 * max by (node_name) (node_metrics_expected{node_name!=\"\"} == 1)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                1
+                                            ],
+                                            "type": "lt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "Alerting",
+                    "execErrState": "Alerting",
+                    "for": "5m",
+                    "annotations": {
+                        "summary": "No fresh vmagent metrics received from {{ $labels.node_name }}.",
+                        "description": "Central Prometheus has received no fresh vmagent metrics from this node for five minutes, persisting for another five minutes. Nodes are discovered from seven days of scrape-status history, with an optional independent node_metrics_expected inventory for longer outages. Check collector, relay and upstream delivery."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "critical",
+                        "component": "node-metrics-collection"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "collection-scrape-target-down",
+                    "title": "Collection stacks: scrape target unavailable",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "min by (node_cluster, node_name, job) (up{job=~\"node-exporter|cadvisor|vmagent\", node_name!=\"\"})",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                1
+                                            ],
+                                            "type": "lt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "5m",
+                    "annotations": {
+                        "summary": "{{ $labels.job }} scrape is failing on {{ $labels.node_name }}.",
+                        "description": "The collector is reporting a failed scrape. Check exporter health, networking, mounts and permissions. Missing scrape-status series are covered by separate delivery rules."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "warning",
+                        "component": "node-metrics-collection"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "collection-remote-write-backlog",
+                    "title": "Collection stacks: persistent remote-write backlog",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "max by (node_cluster, node_name) (vmagent_remotewrite_pending_data_bytes{node_name!=\"\"})",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                104857600
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "10m",
+                    "annotations": {
+                        "summary": "Collector on {{ $labels.node_name }} has over 100 MiB awaiting delivery.",
+                        "description": "At least one destination queue has remained above 100 MiB for ten minutes. Check send errors and relay capacity; at the template's 1 GB disk-queue limit a prolonged outage risks losing older samples. This metric may disappear when forwarding is broken; delivery and Loki rules remain necessary."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "warning",
+                        "component": "node-metrics-collection"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "collection-remote-write-data-loss",
+                    "title": "Collection stacks: remote-write samples or blocks dropped",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "sum by (node_cluster, node_name) (label_replace(increase(vmagent_remotewrite_samples_dropped_total{node_name!=\"\"}[10m]), \"drop_kind\", \"samples\", \"\", \"\") or label_replace(increase(vmagent_remotewrite_packets_dropped_total{node_name!=\"\"}[10m]), \"drop_kind\", \"packets\", \"\", \"\"))",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                0
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "0s",
+                    "annotations": {
+                        "summary": "Collector on {{ $labels.node_name }} has dropped metrics.",
+                        "description": "vmagent reported dropped samples or remote-write blocks during the last ten minutes. Inspect response errors and queue limits; dropped samples cannot be recovered from that collector queue."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "critical",
+                        "component": "node-metrics-collection"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "collection-remote-write-errors",
+                    "title": "Collection stacks: repeated delivery errors in logs",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "loki",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"node-metrics-collection-stack_vmagent|node-metrics-vmagent-1|vmagent\"} |~ `unexpected status code|cannot send|cannot push|failed to send|error when sending|remote storage.*unavailable` [10m])) or vector(0)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "queryType": "instant"
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                2
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "2m",
+                    "annotations": {
+                        "summary": "Collector on {{ $labels.source_hostname }} is repeatedly failing to deliver metrics.",
+                        "description": "At least three vmagent delivery failures occurred in ten minutes. This Loki rule remains useful while metric forwarding is down. Check destination status codes, authentication and relay readiness."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "warning",
+                        "component": "node-metrics-collection"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "collection-errors-in-logs",
+                    "title": "Collection stacks: exporter or collector errors in logs",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "loki",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"node-metrics-collection-stack_(vmagent|node-exporter|cadvisor)|node-metrics-(vmagent|node-exporter|cadvisor)-1|vmagent|node-exporter|cadvisor\"} |~ `(?i)level[= :]+(error|fatal)|\\\"level\\\":\\\"(error|fatal)\\\"|\\\\terror\\\\t|\\\\tfatal\\\\t|panic:|fatal error:` [10m])) or vector(0)",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "queryType": "instant"
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                2
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "2m",
+                    "annotations": {
+                        "summary": "Collection stack on {{ $labels.source_hostname }} is reporting repeated errors.",
+                        "description": "At least three error, fatal or panic messages occurred in ten minutes. Filtering uses the application message because the logging pipeline can label application errors as info. Inspect collector and exporter logs."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "warning",
+                        "component": "node-metrics-collection"
+                    },
+                    "isPaused": false
+                }
+            ]
+        }
+    ]
+}
