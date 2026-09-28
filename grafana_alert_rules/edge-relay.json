@@ -102,7 +102,7 @@
                             "datasourceUid": "prometheus",
                             "model": {
                                 "editorMode": "code",
-                                "expr": "absent_over_time(prometheus_remote_storage_queue_highest_sent_timestamp_seconds[5m]) or vector(0)",
+                                "expr": "(absent_over_time(prometheus_remote_storage_queue_highest_sent_timestamp_seconds[5m]) * on () absent_over_time(vmagent_remotewrite_bytes_sent_total{job=\"vmagent-edge-relay\"}[5m])) or vector(0)",
                                 "instant": true,
                                 "intervalMs": 60000,
                                 "maxDataPoints": 43200,
@@ -158,7 +158,7 @@
                     "for": "5m",
                     "annotations": {
                         "summary": "No edge-relay forwarding telemetry is reaching central Prometheus.",
-                        "description": "No relay highest-sent timestamp was received for five minutes, persisting for another five minutes. Check relay availability, self-scrape authentication and unique external labels. This detects the complete loss of forwarding telemetry; individual node-delivery checks remain essential for partial failures."
+                        "description": "Neither Prometheus relay highest-sent timestamps nor vmagent edge-relay sent-byte telemetry reached the receiver for five minutes, persisting for another five minutes. Check relay availability, self-scrape authentication and unique instance labels. This detects complete telemetry loss; per-node delivery checks cover partial failures."
                     },
                     "labels": {
                         "squadcast": "true",
@@ -238,7 +238,7 @@
                     "for": "5m",
                     "annotations": {
                         "summary": "Edge relay: upstream delivery more than five minutes behind",
-                        "description": "The relay's highest successfully sent sample timestamp is more than five minutes behind. Check pending samples, retries and upstream availability. Requires the relay self-scrape to be delivered with unique external labels."
+                        "description": "The relay's highest successfully sent sample timestamp is more than five minutes behind. Check pending samples, retries and upstream availability. Requires the relay self-scrape to be delivered with unique external labels. This timestamp check is specific to Prometheus relays; vmagent relays use the backlog, drop and end-to-end ingestion checks."
                     },
                     "labels": {
                         "squadcast": "true",
@@ -262,7 +262,7 @@
                             "datasourceUid": "loki",
                             "model": {
                                 "editorMode": "code",
-                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"prometheus-edge-relay(_prometheus-edge-relay)?\"} |~ `Failed to send batch|Failed to send metadata|error sending samples` [10m])) or vector(0)",
+                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"prometheus-edge-relay(_prometheus-edge-relay)?|vmagent-edge-relay(_vmagent-edge-relay)?\"} |~ `Failed to send batch|Failed to send metadata|error sending samples|unexpected status code received after sending a block|cannot send|couldn't send a block` [10m])) or vector(0)",
                                 "instant": true,
                                 "intervalMs": 60000,
                                 "maxDataPoints": 43200,
@@ -342,7 +342,7 @@
                             "datasourceUid": "loki",
                             "model": {
                                 "editorMode": "code",
-                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"prometheus-edge-relay(_prometheus-edge-relay)?\"} |~ `non-recoverable error|out of order sample|out of bounds|too old sample` [10m])) or vector(0)",
+                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"prometheus-edge-relay(_prometheus-edge-relay)?|vmagent-edge-relay(_vmagent-edge-relay)?\"} |~ `non-recoverable error|out of order sample|out of bounds|too old sample|was rejected [(]skipping the block[)]` [10m])) or vector(0)",
                                 "instant": true,
                                 "intervalMs": 60000,
                                 "maxDataPoints": 43200,
@@ -398,7 +398,7 @@
                     "for": "0s",
                     "annotations": {
                         "summary": "Edge relay on {{ $labels.source_hostname }} reported an upstream rejection.",
-                        "description": "A non-recoverable write failure or sample rejection occurred in the last ten minutes. Inspect failedSampleCount and receiver logs; queue drainage alone does not establish successful delivery."
+                        "description": "A non-recoverable write failure or rejected block occurred in the last ten minutes. Inspect relay and receiver logs; queue drainage alone does not establish successful delivery."
                     },
                     "labels": {
                         "squadcast": "true",
@@ -409,7 +409,7 @@
                 },
                 {
                     "uid": "edge-metrics-restart-loop",
-                    "title": "Edge relay: repeated startup and WAL recovery",
+                    "title": "Edge relay: repeated startup and recovery",
                     "condition": "C",
                     "data": [
                         {
@@ -422,7 +422,7 @@
                             "datasourceUid": "loki",
                             "model": {
                                 "editorMode": "code",
-                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"prometheus-edge-relay(_prometheus-edge-relay)?\"} |~ `Starting Prometheus (Agent|Server)` [15m])) or vector(0)",
+                                "expr": "sum by (source_env, source_hostname) (count_over_time({service_name=~\"prometheus-edge-relay(_prometheus-edge-relay)?|vmagent-edge-relay(_vmagent-edge-relay)?\"} |~ `Starting Prometheus (Agent|Server)|starting vmagent at` [15m])) or vector(0)",
                                 "instant": true,
                                 "intervalMs": 60000,
                                 "maxDataPoints": 43200,
@@ -478,7 +478,167 @@
                     "for": "0s",
                     "annotations": {
                         "summary": "Edge relay on {{ $labels.source_hostname }} has started repeatedly.",
-                        "description": "At least two Prometheus startups occurred in fifteen minutes. Inspect Docker task history and OOM events. WAL segment loaded messages are normal during one recovery and do not trigger this rule."
+                        "description": "At least two Prometheus or vmagent relay startups occurred in fifteen minutes. Inspect Docker task history and OOM events. Individual WAL segment and persistent-queue messages do not trigger this rule."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "critical",
+                        "component": "edge-relay"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "edge-vmagent-persistent-backlog",
+                    "title": "Edge relay: vmagent persistent remote-write backlog",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "max by (instance) (vmagent_remotewrite_pending_data_bytes{job=\"vmagent-edge-relay\"})",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                104857600
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "10m",
+                    "annotations": {
+                        "summary": "Edge relay: vmagent persistent remote-write backlog on {{ $labels.instance }}.",
+                        "description": "The vmagent relay has more than 100 MiB buffered for ten minutes. Check upstream availability and successful outgoing bytes. Increase the disk budget only when the upstream can catch up; a full queue drops the oldest blocks."
+                    },
+                    "labels": {
+                        "squadcast": "true",
+                        "severity": "warning",
+                        "component": "edge-relay"
+                    },
+                    "isPaused": false
+                },
+                {
+                    "uid": "edge-vmagent-data-loss",
+                    "title": "Edge relay: vmagent buffered data dropped",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "queryType": "instant",
+                            "relativeTimeRange": {
+                                "from": 900,
+                                "to": 0
+                            },
+                            "datasourceUid": "prometheus",
+                            "model": {
+                                "editorMode": "code",
+                                "expr": "sum by (instance) (label_replace(increase(vmagent_remotewrite_packets_dropped_total{job=\"vmagent-edge-relay\"}[10m]), \"drop_kind\", \"packets\", \"\", \"\") or label_replace(increase(vm_persistentqueue_bytes_dropped_total{job=\"vmagent-edge-relay\"}[10m]), \"drop_kind\", \"disk_bytes\", \"\", \"\"))",
+                                "instant": true,
+                                "intervalMs": 60000,
+                                "maxDataPoints": 43200,
+                                "refId": "A",
+                                "range": false
+                            }
+                        },
+                        {
+                            "refId": "C",
+                            "relativeTimeRange": {
+                                "from": 0,
+                                "to": 0
+                            },
+                            "datasourceUid": "__expr__",
+                            "model": {
+                                "conditions": [
+                                    {
+                                        "evaluator": {
+                                            "params": [
+                                                0
+                                            ],
+                                            "type": "gt"
+                                        },
+                                        "operator": {
+                                            "type": "and"
+                                        },
+                                        "query": {
+                                            "params": [
+                                                "C"
+                                            ]
+                                        },
+                                        "reducer": {
+                                            "params": [],
+                                            "type": "last"
+                                        },
+                                        "type": "query"
+                                    }
+                                ],
+                                "datasource": {
+                                    "type": "__expr__",
+                                    "uid": "__expr__"
+                                },
+                                "expression": "A",
+                                "intervalMs": 1000,
+                                "maxDataPoints": 43200,
+                                "refId": "C",
+                                "type": "threshold"
+                            }
+                        }
+                    ],
+                    "noDataState": "OK",
+                    "execErrState": "Alerting",
+                    "for": "0s",
+                    "annotations": {
+                        "summary": "Edge relay: vmagent buffered data dropped on {{ $labels.instance }}.",
+                        "description": "vmagent dropped upstream blocks or discarded queued bytes in the last ten minutes. Check receiver rejections and EDGE_VM_MAX_DISK_USAGE; discarded samples cannot be recovered from the relay queue."
                     },
                     "labels": {
                         "squadcast": "true",

@@ -2,10 +2,10 @@
 
 These Grafana-managed rules check node metrics at the final Prometheus receiver and delivery errors in Loki. Each JSON file contains one group for `scripts/sync_grafana_resources.py`. Both groups evaluate every minute in the `Infrastructure` folder and use datasource UIDs `prometheus` and `loki`. Change those values for another Grafana installation.
 
-| Group                                  | Checks                                                                                                                                                                                  |
-| :------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Metrics Delivery - Edge Relay`        | No fresh node metrics at the receiver, missing relay forwarding telemetry, delivery lag, repeated upstream failures, rejected samples and repeated startups.                            |
-| `Metrics Delivery - Collection Stacks` | Missing node-exporter, cAdvisor or vmagent metrics per node, failed scrape targets, a persistent disk queue, dropped samples or blocks, delivery errors and application errors in logs. |
+| Group                                  | Checks                                                                                                                                                                                        |
+| :------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Metrics Delivery - Edge Relay`        | No fresh node metrics at the receiver, missing relay forwarding telemetry, Prometheus delivery lag, vmagent backlog and data loss, upstream failures, rejected samples and repeated startups. |
+| `Metrics Delivery - Collection Stacks` | Missing node-exporter, cAdvisor or vmagent metrics per node, failed scrape targets, a persistent disk queue, dropped samples or blocks, delivery errors and application errors in logs.       |
 
 ## Missing metrics and expected nodes
 
@@ -19,22 +19,26 @@ The distributed JSON contains no host inventory or environment exclusions. Befor
 
 ## Thresholds and logging
 
-| Check                                      | Window and threshold                                          | Pending period |
-| :----------------------------------------- | :------------------------------------------------------------ | :------------- |
-| Missing node metrics or all node ingestion | No fresh samples in five minutes                              | Five minutes   |
-| Missing relay telemetry                    | No highest-sent timestamp in five minutes                     | Five minutes   |
-| Relay delivery lag                         | Highest successfully sent timestamp more than 300 seconds old | Five minutes   |
-| Collector queue                            | Any destination has more than 100 MiB pending                 | Ten minutes    |
-| Dropped collector samples or blocks        | Counter increased during ten minutes                          | Immediate      |
-| Repeated delivery or application errors    | At least three matching lines during ten minutes              | Two minutes    |
-| Rejected relay samples                     | At least one matching line during ten minutes                 | Immediate      |
-| Relay restarts                             | At least two startup messages during fifteen minutes          | Immediate      |
+| Check                                      | Window and threshold                                                            | Pending period |
+| :----------------------------------------- | :------------------------------------------------------------------------------ | :------------- |
+| Missing node metrics or all node ingestion | No fresh samples in five minutes                                                | Five minutes   |
+| Missing relay telemetry                    | Neither Prometheus highest-sent nor vmagent sent-byte telemetry in five minutes | Five minutes   |
+| Prometheus relay delivery lag              | Highest successfully sent timestamp more than 300 seconds old                   | Five minutes   |
+| vmagent relay queue                        | Any destination has more than 100 MiB pending                                   | Ten minutes    |
+| vmagent relay data loss                    | Rejected-block or discarded-disk-byte counter increased in ten minutes          | Immediate      |
+| Collector queue                            | Any destination has more than 100 MiB pending                                   | Ten minutes    |
+| Dropped collector samples or blocks        | Counter increased during ten minutes                                            | Immediate      |
+| Repeated delivery or application errors    | At least three matching lines during ten minutes                                | Two minutes    |
+| Rejected relay samples                     | At least one matching line during ten minutes                                   | Immediate      |
+| Relay restarts                             | At least two startup messages during fifteen minutes                            | Immediate      |
 
-The log checks match service names from the supplied Swarm and standalone collection templates, plus unprefixed service names. Adjust them if your stack names differ. Application text is inspected rather than relying on the indexed `level`, because a logging pipeline may label application errors as `info`. A single WAL recovery's `WAL segment loaded` messages are not an error; the restart rule matches `Starting Prometheus Agent` or `Starting Prometheus Server` instead.
+The log checks match service names from the supplied Swarm and standalone collection templates, plus unprefixed service names. Edge checks recognise both `prometheus-edge-relay` and `vmagent-edge-relay`, including their default Swarm stack prefixes. Adjust them if your stack names differ. Application text is inspected rather than relying on the indexed `level`, because a logging pipeline may label application errors as `info`. The restart rule counts `Starting Prometheus Agent`, `Starting Prometheus Server` or `starting vmagent at`; individual WAL segment and persistent-queue messages do not trigger it.
 
 Loki checks remain available when metrics forwarding fails, provided log forwarding still works. No matching error logs is normal and returns zero. Supporting backlog, drop, target-down and lag checks treat missing data as OK because dedicated delivery checks cover missing telemetry. All rules alert on query errors rather than silently retaining a healthy state. These rules cannot report through Grafana when Grafana itself is unavailable; monitor that availability independently.
 
-The relay lag and telemetry checks require its self-scrape to work and be forwarded. Set a unique external label such as `edge: "example-edge"` on every relay so identically named self-scrape series do not collide. If receiver basic authentication is enabled, configure authenticated self-scraping as described in the [relay setup guide](../docker-swarm-templates/README.md). The missing-telemetry rule intentionally alerts if those metrics are unavailable even while node metrics are flowing.
+Relay telemetry checks require its self-scrape to work and be forwarded. Prometheus relays use highest-sent timestamps; vmagent relays use `vmagent_remotewrite_bytes_sent_total{job="vmagent-edge-relay"}` for telemetry presence, pending bytes for backlog and counters for rejected blocks or disk-limit drops. Telemetry presence establishes delivery of self-metrics, not that every buffered sample was delivered. The timestamp lag rule is specific to Prometheus; end-to-end node-delivery checks and queue checks also cover vmagent. The complete-telemetry-loss rule accepts either relay type, so installations running multiple relays should scope it per deployment or add per-relay expected inventory checks.
+
+Set unique external labels on Prometheus relays. The vmagent template uses the container hostname as the self-scrape `instance` by default; a custom scrape configuration can provide a stable deployment identity. Retain `job="vmagent-edge-relay"` when customising that configuration. Receiver authentication is included in vmagent's default self-scrape; custom scrape configurations need their own authentication. See the [relay operation guide](../docker-swarm-templates/docs/edge-relays.md). The missing-telemetry rule intentionally alerts if telemetry is unavailable even while node metrics are flowing. Reimport `edge-relay.json` after switching relay types; the two alert groups remain separate.
 
 Rules carry `squadcast="true"`, matching the existing notification-routing convention, plus `severity` and `component`. Configure notification policies/contact points for those labels before importing; rule creation alone does not establish a working notification destination. Use silences for planned redeployments or backlog recovery, and inspect rejected samples before assuming recovery preserved every sample.
 
