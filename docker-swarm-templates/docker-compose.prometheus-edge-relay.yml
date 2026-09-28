@@ -3,6 +3,10 @@
 #   Receives Prometheus remote_write metrics and forwards them upstream.
 #
 # ---------------
+# TODO:
+#       -
+#
+# ---------------
 # Config (paste into portainer advance env text input):
 #
 # <config_start>
@@ -17,19 +21,25 @@
 #   #-  - TZ -
 #   #-    The timezone.
 #   TZ=Etc/UTC
+#   #@ Resource Limits
+#   #-  - EDGE_PROM_MEMORY_LIMIT -
+#   #-    Container memory limit. Large existing WALs may need extra recovery headroom.
+#   EDGE_PROM_MEMORY_LIMIT=700M
+#   #-  - EDGE_PROM_GOMEMLIMIT_RATIO -
+#   #-    Go soft memory target as a fraction of the container limit (greater than 0, at most 1).
+#   #-    0.70 leaves headroom; lower values can increase garbage collection CPU.
+#   EDGE_PROM_GOMEMLIMIT_RATIO=0.70
 #   #@ Container Paths
 #   #-  - EDGE_PROM_DATA_PATH -
 #   #-    The Path to the Prometheus data directory
 #   EDGE_PROM_DATA_PATH=./appdata/prometheus-edge-relay
 #   #@ Prometheus Config
-#   #-  - EDGE_PROM_MEMORY_LIMIT -
-#   #-    Memory limit for the edge relay container
-#   EDGE_PROM_MEMORY_LIMIT=700M
 #   #-  - EDGE_PROM_PUBLISHED_PORT -
 #   #-    The published port for the remote_write receiver
 #   EDGE_PROM_PUBLISHED_PORT=9090
 #   #-  - EDGE_PROM_RETENTION_TIME -
-#   #-    Local retention window (kept short to limit disk usage)
+#   #-    Maximum age of buffered samples before WAL truncation discards them.
+#   #-    Does not skip startup replay of an existing WAL. Shortening can lose unsent samples.
 #   EDGE_PROM_RETENTION_TIME=6h
 #   #-  - EDGE_PROM_SCRAPE_INTERVAL -
 #   #-    Scrape interval for built-in self-scrape
@@ -76,12 +86,27 @@
 #   #-  - UPSTREAM_PROMETHEUS_BASIC_AUTH_PASS -
 #   #-    Optional password for upstream basic auth (set with USER).
 #   UPSTREAM_PROMETHEUS_BASIC_AUTH_PASS=
+#   #@ Remote Write Queue
+#   #-    Defaults favour small deployments. Increase gradually when delivery lag grows.
+#   #-  - EDGE_PROM_REMOTE_WRITE_MIN_SHARDS -
+#   #-    Initial number of parallel send queues; must not exceed MAX_SHARDS.
+#   EDGE_PROM_REMOTE_WRITE_MIN_SHARDS=1
+#   #-  - EDGE_PROM_REMOTE_WRITE_MAX_SHARDS -
+#   #-    Maximum parallel send queues. Try 8 for higher throughput; Prometheus defaults to 50.
+#   EDGE_PROM_REMOTE_WRITE_MAX_SHARDS=4
+#   #-  - EDGE_PROM_REMOTE_WRITE_CAPACITY -
+#   #-    Pending samples per shard. Keep at least 3 times MAX_SAMPLES_PER_SEND.
+#   EDGE_PROM_REMOTE_WRITE_CAPACITY=3000
+#   #-  - EDGE_PROM_REMOTE_WRITE_MAX_SAMPLES_PER_SEND -
+#   #-    Maximum samples per request. Try 2000 with capacity 6000 for larger deployments.
+#   EDGE_PROM_REMOTE_WRITE_MAX_SAMPLES_PER_SEND=1000
+#   #-  - EDGE_PROM_REMOTE_WRITE_BATCH_SEND_DEADLINE -
+#   #-    Flush a partial batch after this interval; full batches are sent immediately.
+#   EDGE_PROM_REMOTE_WRITE_BATCH_SEND_DEADLINE=5s
 #   #-  - UPSTREAM_PROMETHEUS_REMOTE_WRITE_CONFIG -
 #   #-    Extra remote_write config appended under the same remote_write item.
-#   #-    Must be indented 4 spaces, e.g.:
-#   #-      queue_config:
-#   #-        max_samples_per_send: 10000
-#   #-    You can also include relabeling, e.g.:
+#   #-    Must be indented 4 spaces. An explicit queue_config replaces all queue variables above.
+#   #-    For example:
 #   #-      write_relabel_configs:
 #   #-        - source_labels: [__name__]
 #   #-          regex: ".*"
@@ -107,28 +132,10 @@ networks:
     external: true
 
 services:
+  # -- Prometheus remote-write relay --
   prometheus-edge-relay:
     image: ghcr.io/prometheus/prometheus:v3.5.4 #>convert_sha256
     user: '65534:65534'
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-        delay: 10s
-        window: 5s
-      placement:
-        constraints:
-          - ${EDGE_PROM_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
-      resources:
-        limits:
-          memory: ${EDGE_PROM_MEMORY_LIMIT:-700M}
-        reservations:
-          memory: 128M
-    healthcheck:
-      test: ['CMD', 'pidof', 'prometheus']
-      interval: 15s
-      timeout: 10s
-      retries: 5
     entrypoint:
       - '/bin/sh'
       - '-c'
@@ -174,6 +181,17 @@ services:
         if [ -n "$${UPSTREAM_PROMETHEUS_REMOTE_WRITE_URL:-}" ]; then
           echo "remote_write:" >> /etc/prometheus/prometheus.yml
           echo "  - url: $${UPSTREAM_PROMETHEUS_REMOTE_WRITE_URL}" >> /etc/prometheus/prometheus.yml
+          # Preserve existing advanced queue overrides without generating a duplicate YAML key.
+          if ! printf "%s\n" "$${UPSTREAM_PROMETHEUS_REMOTE_WRITE_CONFIG:-}" | grep -Eq '^[[:space:]]*queue_config[[:space:]]*:'; then
+            cat >> /etc/prometheus/prometheus.yml <<EOF
+            queue_config:
+              min_shards: $${EDGE_PROM_REMOTE_WRITE_MIN_SHARDS:-1}
+              max_shards: $${EDGE_PROM_REMOTE_WRITE_MAX_SHARDS:-4}
+              capacity: $${EDGE_PROM_REMOTE_WRITE_CAPACITY:-3000}
+              max_samples_per_send: $${EDGE_PROM_REMOTE_WRITE_MAX_SAMPLES_PER_SEND:-1000}
+              batch_send_deadline: $${EDGE_PROM_REMOTE_WRITE_BATCH_SEND_DEADLINE:-5s}
+        EOF
+          fi
           if [ -n "$${UPSTREAM_PROMETHEUS_BASIC_AUTH_USER:-}" ] && [ -n "$${UPSTREAM_PROMETHEUS_BASIC_AUTH_PASS:-}" ]; then
             cat >> /etc/prometheus/prometheus.yml <<EOF
             basic_auth:
@@ -195,16 +213,42 @@ services:
           --config.file=/etc/prometheus/prometheus.yml \
           --log.level=info \
           --agent \
+          --auto-gomemlimit.ratio=$${EDGE_PROM_GOMEMLIMIT_RATIO:-0.70} \
           --storage.agent.path=/prometheus \
           --storage.agent.retention.max-time=$${EDGE_PROM_RETENTION_TIME:-6h} \
           --web.listen-address=0.0.0.0:9090 \
           --web.enable-remote-write-receiver \
           $${PROM_ADDITIONAL_EXEC_ARGS}
 
+    # RESOURCES:
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 5s
+      update_config:
+        order: stop-first
+      placement:
+        constraints:
+          - ${EDGE_PROM_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      resources:
+        limits:
+          memory: ${EDGE_PROM_MEMORY_LIMIT:-700M}
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ['CMD', 'pidof', 'prometheus']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
     # NETWORK:
     networks:
       - swarm-public
     ports:
+      # Prometheus remote-write receiver
       - target: 9090
         published: ${EDGE_PROM_PUBLISHED_PORT:-9090}
         protocol: tcp
@@ -212,7 +256,19 @@ services:
 
     # ENVIRONMENT:
     environment:
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: prometheus-edge-relay
+      service_version: 'v3.5.4'
+      # -- Application execution
       TZ: ${TZ:-Etc/UTC}
+      EDGE_PROM_GOMEMLIMIT_RATIO: ${EDGE_PROM_GOMEMLIMIT_RATIO:-0.70}
+      EDGE_PROM_RETENTION_TIME: ${EDGE_PROM_RETENTION_TIME:-6h}
+      EDGE_PROM_REMOTE_WRITE_MIN_SHARDS: ${EDGE_PROM_REMOTE_WRITE_MIN_SHARDS:-1}
+      EDGE_PROM_REMOTE_WRITE_MAX_SHARDS: ${EDGE_PROM_REMOTE_WRITE_MAX_SHARDS:-4}
+      EDGE_PROM_REMOTE_WRITE_CAPACITY: ${EDGE_PROM_REMOTE_WRITE_CAPACITY:-3000}
+      EDGE_PROM_REMOTE_WRITE_MAX_SAMPLES_PER_SEND: ${EDGE_PROM_REMOTE_WRITE_MAX_SAMPLES_PER_SEND:-1000}
+      EDGE_PROM_REMOTE_WRITE_BATCH_SEND_DEADLINE: ${EDGE_PROM_REMOTE_WRITE_BATCH_SEND_DEADLINE:-5s}
       EDGE_PROM_BASIC_AUTH_USER: ${EDGE_PROM_BASIC_AUTH_USER:-}
       EDGE_PROM_BASIC_AUTH_PASS_HASH: ${EDGE_PROM_BASIC_AUTH_PASS_HASH:-}
       EDGE_PROM_SCRAPE_INTERVAL: ${EDGE_PROM_SCRAPE_INTERVAL:-15s}
