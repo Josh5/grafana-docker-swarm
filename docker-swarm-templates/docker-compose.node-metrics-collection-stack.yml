@@ -322,7 +322,7 @@ services:
   #
   node-exporter:
     # Releases: https://hub.docker.com/r/prom/node-exporter/tags
-    image: prom/node-exporter:v1.11.1 #>convert_sha256
+    image: prom/node-exporter:v1.12.1 #>convert_sha256
 
     healthcheck:
       test:
