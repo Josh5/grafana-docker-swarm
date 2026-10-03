@@ -27,9 +27,24 @@
 #   DOCKER_SOCKET_PATH=/var/run/docker.sock
 #   #@ Resources
 #   #-  - PROM_AGENT_CPU_LIMIT -
-#   #-    vmagent CPU quota in cores. 0.50 caps usage at half a CPU's worth of runtime.
+#   #-    vmagent CPU quota in cores. 0.20 caps usage at one fifth of a CPU's runtime.
 #   #-    Increase if scrapes fall behind or the remote_write backlog cannot drain.
-#   PROM_AGENT_CPU_LIMIT=0.50
+#   PROM_AGENT_CPU_LIMIT=0.20
+#   #-  - PROM_AGENT_MEMORY_LIMIT -
+#   #-    vmagent memory limit.
+#   PROM_AGENT_MEMORY_LIMIT=256M
+#   #-  - NODE_EXPORTER_CPU_LIMIT -
+#   #-    node-exporter CPU quota in cores.
+#   NODE_EXPORTER_CPU_LIMIT=0.20
+#   #-  - NODE_EXPORTER_MEMORY_LIMIT -
+#   #-    node-exporter memory limit.
+#   NODE_EXPORTER_MEMORY_LIMIT=64M
+#   #-  - CADVISOR_CPU_LIMIT -
+#   #-    cAdvisor CPU quota in cores.
+#   CADVISOR_CPU_LIMIT=0.20
+#   #-  - CADVISOR_MEMORY_LIMIT -
+#   #-    cAdvisor memory limit.
+#   CADVISOR_MEMORY_LIMIT=256M
 #   #@ Storage
 #   #-  - PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE -
 #   #-    Max on-disk queue size per remote_write URL, e.g. 1GB or 500MiB
@@ -87,10 +102,8 @@ services:
         window: 5s
       resources:
         limits:
-          cpus: '${PROM_AGENT_CPU_LIMIT:-0.50}'
-          memory: 128M
-        reservations:
-          memory: 64M
+          cpus: '${PROM_AGENT_CPU_LIMIT:-0.20}'
+          memory: ${PROM_AGENT_MEMORY_LIMIT:-256M}
 
     entrypoint:
       - /bin/sh
@@ -348,9 +361,8 @@ services:
         window: 5s
       resources:
         limits:
-          memory: 64M
-        reservations:
-          memory: 32M
+          cpus: '${NODE_EXPORTER_CPU_LIMIT:-0.20}'
+          memory: ${NODE_EXPORTER_MEMORY_LIMIT:-64M}
 
     entrypoint:
       - '/bin/sh'
@@ -426,9 +438,8 @@ services:
         window: 5s
       resources:
         limits:
-          memory: 128M
-        reservations:
-          memory: 64M
+          cpus: '${CADVISOR_CPU_LIMIT:-0.20}'
+          memory: ${CADVISOR_MEMORY_LIMIT:-256M}
 
     command:
       - -logtostderr
@@ -436,6 +447,7 @@ services:
       - -housekeeping_interval=15s
       - -max_housekeeping_interval=60s
       - -allow_dynamic_housekeeping=true
+      - -disable_metrics=disk,percpu
 
     # VOLUMES:
     volumes:
