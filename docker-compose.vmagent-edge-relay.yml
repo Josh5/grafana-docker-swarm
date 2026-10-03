@@ -1,0 +1,215 @@
+# ---------------
+# vmagent Edge Relay
+#
+#   Receives Prometheus remote-write metrics, buffers upstream outages on disk,
+#   and forwards to a Prometheus-compatible receiver.
+#   Uses a Docker-managed queue volume separate from the Prometheus edge relay.
+#
+#   REF:
+#     - https://docs.victoriametrics.com/victoriametrics/vmagent/
+#
+# ---------------
+# TODO:
+#       -
+#
+# ---------------
+# Config (paste into portainer advance env text input):
+#
+# <config_start>
+#   #@ Placement
+#   #-  - EDGE_VM_PLACEMENT_CONSTRAINT -
+#   #-    Pin the relay to the node holding its local persistent queue volume.
+#   EDGE_VM_PLACEMENT_CONSTRAINT=engine.labels.node-type==swarm-monitor
+#   #@ Resource Limits
+#   #-  - EDGE_VM_MEMORY_LIMIT -
+#   #-    Hard container memory limit. Measure usage during normal traffic and catch-up.
+#   EDGE_VM_MEMORY_LIMIT=700M
+#   #@ Container Config
+#   #-  - EDGE_VM_PUBLISHED_PORT -
+#   #-    Host port serving /api/v1/write, /metrics and /health.
+#   #-    Reuse the old relay's published port after stopping its service.
+#   EDGE_VM_PUBLISHED_PORT=9090
+#   #-  - EDGE_VM_BASIC_AUTH_USER / EDGE_VM_BASIC_AUTH_PASS -
+#   #-    Optional receiver basic authentication. Set both or leave both empty.
+#   #-    PASS is a plain password, not a bcrypt hash. Default self-scraping uses it too.
+#   EDGE_VM_BASIC_AUTH_USER=
+#   EDGE_VM_BASIC_AUTH_PASS=
+#   #-  - EDGE_VM_MAX_DISK_USAGE -
+#   #-    Maximum persistent queue size per upstream URL; 0 means unlimited.
+#   #-    Oldest buffered blocks are dropped when full. Increase for longer outages.
+#   EDGE_VM_MAX_DISK_USAGE=1GB
+#   #-  - EDGE_VM_PROM_SCRAPE_CONFIG -
+#   #-    Optional complete Prometheus scrape YAML, starting with global/scrape_configs.
+#   #-    Empty uses a 15s authenticated self-scrape with job vmagent-edge-relay.
+#   #-    A custom config replaces the default; retain a self-scrape for relay alerts.
+#   EDGE_VM_PROM_SCRAPE_CONFIG=
+#   #-  - EDGE_VM_RELABEL_CONFIG -
+#   #-    Optional YAML list of remote-write relabel rules applied to received and scraped data.
+#   #-    Empty forwards labels unchanged. Keep node identity and relay telemetry labels.
+#   EDGE_VM_RELABEL_CONFIG=
+#   #@ Upstream Config
+#   #-  - UPSTREAM_REMOTE_WRITE_URL -
+#   #-    Required full Prometheus-compatible remote-write URL, including any path prefix.
+#   #-    Example: http://grafana-stack-prometheus:9090/prom/api/v1/write
+#   UPSTREAM_REMOTE_WRITE_URL=
+#   #-  - UPSTREAM_BASIC_AUTH_USER / UPSTREAM_BASIC_AUTH_PASS -
+#   #-    Optional upstream basic authentication. Set both or leave both empty.
+#   #-    PASS is a plain password, not a bcrypt hash.
+#   UPSTREAM_BASIC_AUTH_USER=
+#   UPSTREAM_BASIC_AUTH_PASS=
+# <config_end>
+#
+# ---------------
+# Setup Script
+#
+# <script_start>
+#   > echo "Docker creates the vmagent-edge-relay-data queue volume automatically"
+# <script_end>
+#
+# ---------------
+---
+networks:
+  swarm-public:
+    # Shared ingress network used by the existing edge relay.
+    external: true
+
+volumes:
+  edge-agent-data:
+    name: vmagent-edge-relay-data
+
+services:
+  # -- vmagent remote-write relay --
+  vmagent-edge-relay:
+    image: victoriametrics/vmagent@sha256:2c73a6acb0b0c91e0894158ba0e4d3615da43d6833655f27169933bd1161633e
+    entrypoint:
+      - '/bin/sh'
+      - '-c'
+      - |
+        set -eu
+        umask 077
+        mkdir -p /etc/vmagent
+        chmod 700 /etc/vmagent
+
+        if { [ -n "$${EDGE_VM_BASIC_AUTH_USER:-}" ] && [ -z "$${EDGE_VM_BASIC_AUTH_PASS:-}" ]; } ||
+           { [ -z "$${EDGE_VM_BASIC_AUTH_USER:-}" ] && [ -n "$${EDGE_VM_BASIC_AUTH_PASS:-}" ]; }; then
+          echo "Set both EDGE_VM_BASIC_AUTH_USER and EDGE_VM_BASIC_AUTH_PASS, or neither" >&2
+          exit 1
+        fi
+        if { [ -n "$${UPSTREAM_BASIC_AUTH_USER:-}" ] && [ -z "$${UPSTREAM_BASIC_AUTH_PASS:-}" ]; } ||
+           { [ -z "$${UPSTREAM_BASIC_AUTH_USER:-}" ] && [ -n "$${UPSTREAM_BASIC_AUTH_PASS:-}" ]; }; then
+          echo "Set both UPSTREAM_BASIC_AUTH_USER and UPSTREAM_BASIC_AUTH_PASS, or neither" >&2
+          exit 1
+        fi
+
+        set -- /vmagent-prod \
+          -httpListenAddr=:8429 \
+          -promscrape.config=/etc/vmagent/prometheus.yml \
+          "-remoteWrite.url=$${UPSTREAM_REMOTE_WRITE_URL:?}" \
+          -remoteWrite.forcePromProto=true \
+          -remoteWrite.queues=1 \
+          -remoteWrite.tmpDataPath=/vmagent-remotewrite-data \
+          "-remoteWrite.maxDiskUsagePerURL=$${EDGE_VM_MAX_DISK_USAGE:-1GB}"
+
+        if [ -n "$${EDGE_VM_BASIC_AUTH_USER:-}" ]; then
+          printf '%s' "$${EDGE_VM_BASIC_AUTH_PASS}" > /etc/vmagent/receiver-password
+          set -- "$${@}" \
+            "-httpAuth.username=$${EDGE_VM_BASIC_AUTH_USER}" \
+            -httpAuth.password=file:///etc/vmagent/receiver-password
+        fi
+        if [ -n "$${UPSTREAM_BASIC_AUTH_USER:-}" ]; then
+          printf '%s' "$${UPSTREAM_BASIC_AUTH_PASS}" > /etc/vmagent/upstream-password
+          set -- "$${@}" \
+            "-remoteWrite.basicAuth.username=$${UPSTREAM_BASIC_AUTH_USER}" \
+            -remoteWrite.basicAuth.passwordFile=/etc/vmagent/upstream-password
+        fi
+
+        if [ -n "$${EDGE_VM_PROM_SCRAPE_CONFIG:-}" ]; then
+          printf '%s\n' "$${EDGE_VM_PROM_SCRAPE_CONFIG}" > /etc/vmagent/prometheus.yml
+        else
+          cat > /etc/vmagent/prometheus.yml <<'EOF'
+        global:
+          scrape_interval: 15s
+        scrape_configs:
+          - job_name: vmagent-edge-relay
+            static_configs:
+              - targets: ['127.0.0.1:8429']
+                labels:
+                  instance: '%{HOSTNAME}'
+        EOF
+          if [ -n "$${EDGE_VM_BASIC_AUTH_USER:-}" ]; then
+            AUTH_USER_YAML=$$(printf '%s' "$${EDGE_VM_BASIC_AUTH_USER}" | sed "s/'/''/g")
+            cat >> /etc/vmagent/prometheus.yml <<EOF
+            basic_auth:
+              username: '$${AUTH_USER_YAML}'
+              password_file: /etc/vmagent/receiver-password
+        EOF
+          fi
+        fi
+
+        if [ -n "$${EDGE_VM_RELABEL_CONFIG:-}" ]; then
+          printf '%s\n' "$${EDGE_VM_RELABEL_CONFIG}" > /etc/vmagent/relabel.yml
+          set -- "$${@}" -remoteWrite.relabelConfig=/etc/vmagent/relabel.yml
+        fi
+
+        exec "$${@}"
+
+    # RESOURCES:
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 10s
+      update_config:
+        order: stop-first
+      placement:
+        constraints:
+          - ${EDGE_VM_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
+      resources:
+        limits:
+          memory: ${EDGE_VM_MEMORY_LIMIT:-700M}
+        reservations:
+          memory: 128M
+    healthcheck:
+      test:
+        ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8429/health']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    # NETWORK:
+    networks:
+      - swarm-public
+    ports:
+      # Prometheus remote-write receiver and vmagent diagnostics
+      - target: 8429
+        published: ${EDGE_VM_PUBLISHED_PORT:-9090}
+        protocol: tcp
+        mode: host
+
+    # ENVIRONMENT:
+    environment:
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: vmagent-edge-relay
+      service_version: 'v1.146.0'
+      # -- Application execution
+      EDGE_VM_BASIC_AUTH_USER: ${EDGE_VM_BASIC_AUTH_USER:-}
+      EDGE_VM_BASIC_AUTH_PASS: ${EDGE_VM_BASIC_AUTH_PASS:-}
+      EDGE_VM_MAX_DISK_USAGE: ${EDGE_VM_MAX_DISK_USAGE:-1GB}
+      EDGE_VM_PROM_SCRAPE_CONFIG: ${EDGE_VM_PROM_SCRAPE_CONFIG:-}
+      EDGE_VM_RELABEL_CONFIG: ${EDGE_VM_RELABEL_CONFIG:-}
+      UPSTREAM_REMOTE_WRITE_URL: ${UPSTREAM_REMOTE_WRITE_URL:?}
+      UPSTREAM_BASIC_AUTH_USER: ${UPSTREAM_BASIC_AUTH_USER:-}
+      UPSTREAM_BASIC_AUTH_PASS: ${UPSTREAM_BASIC_AUTH_PASS:-}
+
+    # VOLUMES:
+    volumes:
+      - type: tmpfs
+        target: /etc/vmagent
+        tmpfs:
+          size: 1048576
+      - type: volume
+        source: edge-agent-data
+        target: /vmagent-remotewrite-data
