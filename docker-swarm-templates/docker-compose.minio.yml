@@ -40,6 +40,10 @@
 #   #-  - MINIO_HTTP_PORT -
 #   #-    The MinIO HTTP Console port
 #   MINIO_HTTP_PORT=9001
+#   #@ Resources
+#   #-  - MINIO_MEMORY_LIMIT -
+#   #-    MinIO container memory limit.
+#   MINIO_MEMORY_LIMIT=500M
 # <config_end>
 #
 # ---------------
@@ -79,7 +83,7 @@ services:
           - ${MINIO_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
       resources:
         limits:
-          memory: 500M
+          memory: ${MINIO_MEMORY_LIMIT:-500M}
         reservations:
           memory: 200M
       labels:
