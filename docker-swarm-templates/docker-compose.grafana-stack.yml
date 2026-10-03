@@ -51,6 +51,13 @@
 #   #-  - LOKI_DATA_PATH -
 #   #-    The Path to the Loki storage directory
 #   LOKI_DATA_PATH=./appdata/loki
+#   #@ Loki Resources
+#   #-  - LOKI_MEMORY_LIMIT -
+#   #-    Memory limit for the monolithic Loki service.
+#   LOKI_MEMORY_LIMIT=1.5G
+#   #-  - LOKI_MEMORY_RESERVATION -
+#   #-    Memory reservation for the monolithic Loki service.
+#   LOKI_MEMORY_RESERVATION=500M
 #   #@ Prometheus Config
 #   #-  - PROMETHEUS_DEBUGGING -
 #   #-    Enable debugging
@@ -200,9 +207,9 @@ x-service-defaults:
           - ${LOKI_PLACEMENT_CONSTRAINT:-engine.labels.node-type==swarm-monitor}
       resources:
         limits:
-          memory: 1.5G
+          memory: ${LOKI_MEMORY_LIMIT:-1.5G}
         reservations:
-          memory: 500M
+          memory: ${LOKI_MEMORY_RESERVATION:-500M}
     entrypoint:
       - 'sh'
       - '-c'
