@@ -302,6 +302,10 @@ services:
 
     # ENVIRONMENT:
     environment:
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: vmagent
+      service_version: 'v1.146.0'
       TZ: ${TZ:-Etc/UTC}
       NODE_ID: '{{.Node.ID}}'
       NODE_NAME: '{{.Node.Hostname}}'
@@ -393,6 +397,10 @@ services:
 
     # ENVIRONMENT:
     environment:
+      # -- Fluentd Log Driver labels
+      - service_project=grafana-docker-swarm
+      - service_name=node-exporter
+      - service_version=v1.12.1
       - NODE_ID={{.Node.ID}}
 
     # VOLUMES:
@@ -448,6 +456,13 @@ services:
       - -max_housekeeping_interval=60s
       - -allow_dynamic_housekeeping=true
       - -disable_metrics=disk,percpu
+
+    # ENVIRONMENT:
+    environment:
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: cadvisor
+      service_version: 'v0.60.3'
 
     # VOLUMES:
     volumes:

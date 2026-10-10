@@ -27,17 +27,17 @@ The publish action generates `<YAML filename without .yml>.env.example` from the
 
 ## Deploy with standalone Docker Compose
 
-For standalone deployments, include the matching file from [overrides](./overrides/) after the base template. Service-level `cpus` and `cpu_shares` are not accepted by Portainer's Swarm deployment, so standalone CPU settings belong in these overrides. Swarm deployments must use only the base template.
+For standalone node metrics collection, include the override below after the base template. For Swarm, use only the base template; Portainer rejects the standalone CPU settings.
 
 | Base template                                                                                          | Standalone override                                                                                                                              |
 | :----------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
 | [docker-compose.node-metrics-collection-stack.yml](./docker-compose.node-metrics-collection-stack.yml) | [overrides/docker-compose.node-metrics-collection-stack.standalone.yml](./overrides/docker-compose.node-metrics-collection-stack.standalone.yml) |
 
-The node metrics override sets service-level CPU quotas for vmagent, node-exporter and cAdvisor using the same `PROM_AGENT_CPU_LIMIT`, `NODE_EXPORTER_CPU_LIMIT` and `CADVISOR_CPU_LIMIT` variables as the base template (each defaults to `0.20` cores). Keep both quota definitions consistent when editing them. Each service also sets `cpu_shares: 512` to give it lower relative CPU priority under contention than containers using the usual weight of `1024`. The CPU quotas still cap usage independently. See the [Docker Compose CPU settings](https://docs.docker.com/reference/compose-file/services/#cpu_shares).
+Adjust `PROM_AGENT_CPU_LIMIT`, `NODE_EXPORTER_CPU_LIMIT` and `CADVISOR_CPU_LIMIT` in your environment to change each collector's CPU limit (default: `0.20` cores each). The override also gives collectors lower CPU priority when the host is busy.
 
-The override also adds Unraid Dockerman management and icon labels to all three containers. WebUI labels open [vmagent's targets page](https://docs.victoriametrics.com/vmagent.html) on container port `8429` and [cAdvisor's UI](https://github.com/google/cadvisor/blob/master/docs/web.md) on container port `8080`. Node-exporter has no application UI, so it has no WebUI label. The base template does not publish these ports: to use the links, add host port mappings for `8429` and `8080` in your local Compose configuration, or provide another browser-accessible route and adjust the labels accordingly. Unraid's `[PORT:...]` placeholders refer to container ports and resolve to their mapped host ports.
+Unraid icons and WebUI links are included. To use the vmagent and cAdvisor links, add host port mappings for container ports `8429` and `8080` in your local Compose configuration; these ports are not published by default.
 
-The other templates currently have no `deploy.resources.limits.cpus` settings and need no CPU override. Prepare their required external networks, directories and environment values for the standalone host as usual; Swarm placement constraints do not schedule containers across hosts with Compose.
+The other templates need no CPU override. Before deploying, prepare the required external networks and host directories. Standalone Compose runs on the local host.
 
 From the repository root, prepare `docker-swarm-templates/node-metrics-collection-stack.env` using the base template's configuration header, including `METRICS_REMOTE_WRITE_URL`, then run:
 
@@ -58,7 +58,7 @@ For **Portainer on a Docker Standalone environment**, select **Repository** and 
 | Compose path                | `docker-compose.node-metrics-collection-stack.yml`                      |
 | Additional paths → Add file | `overrides/docker-compose.node-metrics-collection-stack.standalone.yml` |
 
-For a source branch, prefix both paths with `docker-swarm-templates/`. Load the base template's environment variables as described above and deploy. Portainer's [Additional paths](https://docs.portainer.io/user/docker/stacks/add#option-3-git-repository) merge files in the same way as multiple Compose `-f` options; the override is not automatically loaded. For Web editor or Upload deployments, merge the CPU settings into the corresponding services in the base YAML before submitting it.
+For a source branch, prefix both paths with `docker-swarm-templates/`. Load your environment variables and deploy. Include the override explicitly in **Additional paths**. For Web editor or Upload deployments, merge the override into the base YAML before submitting it.
 
 ## Edge relay setup
 

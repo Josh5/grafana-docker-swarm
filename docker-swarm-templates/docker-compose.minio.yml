@@ -131,6 +131,10 @@ services:
 
     # ENVIRONMENT:
     environment:
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: minio
+      service_version: 'RELEASE.2025-04-22T22-12-26Z'
       # Application:
       # -- Config
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?}

@@ -392,6 +392,10 @@ x-service-defaults:
     # ENVIRONMENT:
     environment:
       <<: *environment_defaults
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: loki-mono
+      service_version: '3.2.2'
       TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
       LOKI_OBJECT_STORE: ${LOKI_OBJECT_STORE:-s3}
       LOKI_S3_USE_MINIO: ${LOKI_S3_USE_MINIO:-false}
@@ -585,6 +589,10 @@ services:
 
     # ENVIRONMENT:
     environment:
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: grafana
+      service_version: '12.4.5'
       TRAEFIK_DOMAIN: ${TRAEFIK_DOMAIN:?}
       TRAEFIK_SCHEME: ${TRAEFIK_SCHEME:-http}
       TRAEFIK_PATH_PREFIX_GRAFANA: ${TRAEFIK_PATH_PREFIX_GRAFANA:-}
@@ -845,6 +853,10 @@ services:
     # ENVIRONMENT:
     environment:
       <<: *environment_defaults
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: prometheus
+      service_version: 'v3.5.4'
       # Application:
       # -- Config
       # Enable debugging
@@ -931,6 +943,10 @@ services:
     # ENVIRONMENT:
     environment:
       <<: *environment_defaults
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: alertmanager
+      service_version: 'v0.33.0'
       TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
 
     # VOLUMES:
@@ -1139,4 +1155,8 @@ services:
     # ENVIRONMENT:
     environment:
       <<: *environment_defaults
+      # -- Fluentd Log Driver labels
+      service_project: grafana-docker-swarm
+      service_name: loki-gateway
+      service_version: 'latest'
       TRAEFIK_PATH_PREFIX_LOKI: ${TRAEFIK_PATH_PREFIX_LOKI:-}
