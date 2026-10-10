@@ -1,5 +1,7 @@
 # Grafana on Docker Swarm
 
+See the [stack deployment guide](./docker-swarm-templates/README.md) for Swarm and standalone Docker Compose instructions, including the CPU override required for standalone node metrics collection and Portainer's **Additional paths** configuration.
+
 ## Development setup
 
 From the root of this project, run these commands:

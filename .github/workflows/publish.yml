@@ -18,6 +18,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # The publish action builds only top-level templates and copies docs.
+      # Stage standalone overrides in its output directory for release/latest.
+      - name: Include standalone Compose overrides
+        run: |
+          mkdir -p docker-swarm-templates/dist
+          cp -R docker-swarm-templates/overrides docker-swarm-templates/dist/
+
       - name: Publish Swarm Template
         uses: Josh5/action.publish-swarm-stack@4392d434d4cfc8df552c7e92cf063428343f96d2
         with:
