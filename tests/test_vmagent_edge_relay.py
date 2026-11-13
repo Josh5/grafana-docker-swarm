@@ -212,7 +212,7 @@ class RelayIntegrationTests(unittest.TestCase):
                         network,
                         "--mount",
                         f"type=bind,source={root},target=/validation,readonly",
-                        "ghcr.io/prometheus/prometheus:v3.5.4",
+                        "ghcr.io/prometheus/prometheus:v3.13.5",
                         "--config.file=/validation/prometheus.yml",
                         "--web.config.file=/validation/web.yml",
                         "--web.enable-remote-write-receiver",

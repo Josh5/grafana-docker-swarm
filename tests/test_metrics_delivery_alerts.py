@@ -1,7 +1,7 @@
 """Validate alert imports and exercise missing-series behaviour with promtool.
 
 Run from the workspace with --scratch-dir scratch/temp_data and, optionally,
---promtool-image ghcr.io/prometheus/prometheus:v3.5.4. No network requests or
+--promtool-image ghcr.io/prometheus/prometheus:v3.13.5. No network requests or
 Grafana writes are made. Docker is only required for the promtool checks.
 """
 

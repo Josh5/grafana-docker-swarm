@@ -634,7 +634,7 @@ services:
   #
   prometheus:
     # Prometheus releases: https://github.com/prometheus/prometheus/pkgs/container/prometheus/versions?filters%5Bversion_type%5D=tagged
-    image: ghcr.io/prometheus/prometheus:v3.5.4 #>convert_sha256
+    image: ghcr.io/prometheus/prometheus:v3.13.5 #>convert_sha256
     deploy:
       mode: replicated
       replicas: 1
@@ -856,7 +856,7 @@ services:
       # -- Fluentd Log Driver labels
       service_project: grafana-docker-swarm
       service_name: prometheus
-      service_version: 'v3.5.4'
+      service_version: 'v3.13.5'
       # Application:
       # -- Config
       # Enable debugging

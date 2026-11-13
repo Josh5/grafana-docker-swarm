@@ -134,7 +134,7 @@ networks:
 services:
   # -- Prometheus remote-write relay --
   prometheus-edge-relay:
-    image: ghcr.io/prometheus/prometheus:v3.5.4 #>convert_sha256
+    image: ghcr.io/prometheus/prometheus:v3.13.5 #>convert_sha256
     user: '65534:65534'
     entrypoint:
       - '/bin/sh'
@@ -259,7 +259,7 @@ services:
       # -- Fluentd Log Driver labels
       service_project: grafana-docker-swarm
       service_name: prometheus-edge-relay
-      service_version: 'v3.5.4'
+      service_version: 'v3.13.5'
       # -- Application execution
       TZ: ${TZ:-Etc/UTC}
       EDGE_PROM_GOMEMLIMIT_RATIO: ${EDGE_PROM_GOMEMLIMIT_RATIO:-0.70}
