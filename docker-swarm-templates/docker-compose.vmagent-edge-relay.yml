@@ -80,7 +80,7 @@ volumes:
 services:
   # -- vmagent remote-write relay --
   vmagent-edge-relay:
-    image: victoriametrics/vmagent:v1.146.0 #>convert_sha256
+    image: victoriametrics/vmagent:v1.156.0 #>convert_sha256
     entrypoint:
       - '/bin/sh'
       - '-c'
@@ -101,7 +101,9 @@ services:
           exit 1
         fi
 
+        # Preserve the pre-v1.150.0 behaviour for tenant headers on ingestion requests.
         set -- /vmagent-prod \
+          -enableMultitenancyViaHeaders=false \
           -httpListenAddr=:8429 \
           -promscrape.config=/etc/vmagent/prometheus.yml \
           "-remoteWrite.url=$${UPSTREAM_REMOTE_WRITE_URL:?}" \
@@ -193,7 +195,7 @@ services:
       # -- Fluentd Log Driver labels
       service_project: grafana-docker-swarm
       service_name: vmagent-edge-relay
-      service_version: 'v1.146.0'
+      service_version: 'v1.156.0'
       # -- Application execution
       EDGE_VM_BASIC_AUTH_USER: ${EDGE_VM_BASIC_AUTH_USER:-}
       EDGE_VM_BASIC_AUTH_PASS: ${EDGE_VM_BASIC_AUTH_PASS:-}

@@ -83,7 +83,7 @@ volumes:
 
 services:
   vmagent:
-    image: victoriametrics/vmagent:v1.146.0 #>convert_sha256
+    image: victoriametrics/vmagent:v1.156.0 #>convert_sha256
 
     healthcheck:
       test: ['CMD', '/bin/sh', '-c', 'kill -0 1']
@@ -289,7 +289,9 @@ services:
           VMAGENT_REMOTE_WRITE_MAX_DISK_USAGE_ARGS=" -remoteWrite.maxDiskUsagePerURL=$${PROM_AGENT_REMOTE_WRITE_MAX_DISK_USAGE}"
         fi
 
+        # Preserve the pre-v1.150.0 behaviour for tenant headers on ingestion requests.
         exec /vmagent-prod \
+          -enableMultitenancyViaHeaders=false \
           -promscrape.config=/etc/vmagent/prometheus.yml \
           -promscrape.maxScrapeSize=64MB \
           -promscrape.dockerSDCheckInterval=60s \
@@ -305,7 +307,7 @@ services:
       # -- Fluentd Log Driver labels
       service_project: grafana-docker-swarm
       service_name: vmagent
-      service_version: 'v1.146.0'
+      service_version: 'v1.156.0'
       TZ: ${TZ:-Etc/UTC}
       NODE_ID: '{{.Node.ID}}'
       NODE_NAME: '{{.Node.Hostname}}'
@@ -429,7 +431,7 @@ services:
   #
   cadvisor:
     # cAdvisor Releases: https://github.com/google/cadvisor/pkgs/container/cadvisor/versions?filters%5Bversion_type%5D=tagged
-    image: ghcr.io/google/cadvisor:v0.60.3 #>convert_sha256
+    image: ghcr.io/google/cadvisor:v0.60.6 #>convert_sha256
 
     # NOTE: The cadvisor already defines a healthcheck. No point specifying it here incase they change it again.
     # healthcheck:
@@ -462,7 +464,7 @@ services:
       # -- Fluentd Log Driver labels
       service_project: grafana-docker-swarm
       service_name: cadvisor
-      service_version: 'v0.60.3'
+      service_version: 'v0.60.6'
 
     # VOLUMES:
     volumes:
