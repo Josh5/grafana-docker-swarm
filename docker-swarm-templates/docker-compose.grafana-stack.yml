@@ -432,7 +432,7 @@ services:
     #     are reached before bringing them into production environments.
     #   - Review the grafana releases URL above for details on the latest version for the major release we are on.
     #
-    image: grafana/grafana:12.4.5 #>convert_sha256
+    image: grafana/grafana:12.4.15 #>convert_sha256
     deploy:
       mode: replicated
       replicas: 1
@@ -592,7 +592,7 @@ services:
       # -- Fluentd Log Driver labels
       service_project: grafana-docker-swarm
       service_name: grafana
-      service_version: '12.4.5'
+      service_version: '12.4.15'
       TRAEFIK_DOMAIN: ${TRAEFIK_DOMAIN:?}
       TRAEFIK_SCHEME: ${TRAEFIK_SCHEME:-http}
       TRAEFIK_PATH_PREFIX_GRAFANA: ${TRAEFIK_PATH_PREFIX_GRAFANA:-}
